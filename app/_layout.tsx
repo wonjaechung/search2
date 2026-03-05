@@ -63,6 +63,7 @@ function RootLayoutNav() {
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="exchange-search" options={{ headerShown: false }} />
+      <Stack.Screen name="exchange-search-integrated" options={{ headerShown: false }} />
       <Stack.Screen name="order-placeholder" options={{ headerShown: false }} />
     </Stack>
   );
@@ -104,7 +105,7 @@ const webStyles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#000000",
+    backgroundColor: "#E5E7EB",
     ...(Platform.OS === "web"
       ? { minHeight: "100vh" as any }
       : {}),
@@ -114,7 +115,7 @@ const webStyles = StyleSheet.create({
     width: "100%",
     alignItems: "stretch",
     justifyContent: "flex-start",
-    backgroundColor: "#000000",
+    backgroundColor: "#E5E7EB",
     ...(Platform.OS === "web"
       ? {
           minHeight: "100dvh" as any,
@@ -126,7 +127,7 @@ const webStyles = StyleSheet.create({
     width: "100%",
     maxWidth: 430,
     flex: 1,
-    backgroundColor: "#0D0F14",
+    backgroundColor: "#FFFFFF",
     ...(Platform.OS === "web"
       ? {
           height: "100dvh" as any,
@@ -143,7 +144,7 @@ const webStyles = StyleSheet.create({
     width: "100%",
     maxWidth: "100%",
     flex: 1,
-    backgroundColor: "#0D0F14",
+    backgroundColor: "#FFFFFF",
     ...(Platform.OS === "web"
       ? {
           height: "100dvh" as any,

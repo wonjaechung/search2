@@ -16,7 +16,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import ComparisonChart from "@/components/ComparisonChart";
@@ -238,6 +238,16 @@ export default function HomeScreen() {
               }}
             >
               <Feather name="search" size={20} color={Colors.dark.text} />
+            </Pressable>
+            <Pressable
+              style={styles.topNavIconBtn}
+              onPress={() => {
+                if (activeTopTab === "exchange") {
+                  router.push("/exchange-search-integrated");
+                }
+              }}
+            >
+              <MaterialCommunityIcons name="magnify-plus-outline" size={20} color={Colors.dark.text} />
             </Pressable>
             <Pressable style={styles.topNavIconBtn}>
               <Ionicons name="notifications-outline" size={20} color={Colors.dark.text} />

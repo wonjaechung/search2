@@ -28,7 +28,10 @@ type BithumbTicker = {
 
 function formatPrice(quote: "KRW" | "BTC", price: number): string {
   if (quote === "KRW") {
-    if (price >= 1) return Math.round(price).toLocaleString("ko-KR");
+    if (!Number.isFinite(price)) return "0";
+    if (price >= 100) return Math.round(price).toLocaleString("ko-KR");
+    if (price >= 10) return price.toFixed(2);
+    if (price >= 1) return price.toFixed(3);
     return price.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
   }
   return price.toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
@@ -36,10 +39,8 @@ function formatPrice(quote: "KRW" | "BTC", price: number): string {
 
 function formatVolumeKrw(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return "0";
-  const eok = value / 100_000_000;
-  if (eok >= 10_000) return `${(eok / 10_000).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}조`;
-  if (eok >= 1) return `${eok.toFixed(0)}억`;
-  return `${(value / 1_000_000).toFixed(0)}백만`;
+  const millions = Math.round(value / 1_000_000);
+  return `${millions.toLocaleString("ko-KR")}백만`;
 }
 
 function formatVolumeBtc(value: number): string {

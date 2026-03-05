@@ -63,9 +63,11 @@ function CoinRow({ coin }: { coin: ExchangeCoin }) {
 export default function ExchangeView({
   searchQuery = "",
   advancedFilters,
+  compactMode = false,
 }: {
   searchQuery?: string;
   advancedFilters?: Record<FilterCategoryId, string | null>;
+  compactMode?: boolean;
 }) {
   const insets = useSafeAreaInsets();
   const [liveCoins, setLiveCoins] = useState<ExchangeCoin[]>(EXCHANGE_COINS);
@@ -167,85 +169,91 @@ export default function ExchangeView({
 
   return (
     <View style={styles.container}>
-      <View style={styles.portfolioBar}>
-        <View style={styles.portfolioLeft}>
-          <Text style={styles.portfolioLabel}>내 보유자산</Text>
-          <Feather
-            name="chevron-right"
-            size={16}
-            color={Colors.dark.textTertiary}
-          />
+      {!compactMode && (
+        <View style={styles.portfolioBar}>
+          <View style={styles.portfolioLeft}>
+            <Text style={styles.portfolioLabel}>내 보유자산</Text>
+            <Feather
+              name="chevron-right"
+              size={16}
+              color={Colors.dark.textTertiary}
+            />
+          </View>
+          <Text style={styles.portfolioValue}>0원 0.00%</Text>
         </View>
-        <Text style={styles.portfolioValue}>0원 0.00%</Text>
-      </View>
+      )}
 
-      <View style={styles.subTabRow}>
-        {EXCHANGE_SUB_TABS.map((tab) => (
-          <Pressable
-            key={tab.key}
-            onPress={() => {
-              if (Platform.OS !== "web") {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              }
-              setSubTab(tab.key);
-            }}
-            style={[
-              styles.subTabItem,
-              subTab === tab.key && styles.subTabItemActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.subTabText,
-                subTab === tab.key && styles.subTabTextActive,
-              ]}
-            >
-              {tab.label}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <View style={styles.filterBar}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.filterRowScroll}
-          contentContainerStyle={[styles.filterRow, styles.filterRowContent]}
-        >
-          {EXCHANGE_FILTERS.map((f) => (
+      {!compactMode && (
+        <View style={styles.subTabRow}>
+          {EXCHANGE_SUB_TABS.map((tab) => (
             <Pressable
-              key={f.key}
+              key={tab.key}
               onPress={() => {
                 if (Platform.OS !== "web") {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                 }
-                setFilter(f.key);
+                setSubTab(tab.key);
               }}
               style={[
-                styles.filterChip,
-                filter === f.key && styles.filterChipActive,
+                styles.subTabItem,
+                subTab === tab.key && styles.subTabItemActive,
               ]}
             >
               <Text
                 style={[
-                  styles.filterChipText,
-                  filter === f.key && styles.filterChipTextActive,
+                  styles.subTabText,
+                  subTab === tab.key && styles.subTabTextActive,
                 ]}
               >
-                {f.label}
+                {tab.label}
               </Text>
             </Pressable>
           ))}
-        </ScrollView>
-        <Pressable style={styles.filterDropdownFixed}>
-          <Feather
-            name="chevron-down"
-            size={18}
-            color={Colors.dark.textTertiary}
-          />
-        </Pressable>
-      </View>
+        </View>
+      )}
+
+      {!compactMode && (
+        <View style={styles.filterBar}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.filterRowScroll}
+            contentContainerStyle={[styles.filterRow, styles.filterRowContent]}
+          >
+            {EXCHANGE_FILTERS.map((f) => (
+              <Pressable
+                key={f.key}
+                onPress={() => {
+                  if (Platform.OS !== "web") {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  setFilter(f.key);
+                }}
+                style={[
+                  styles.filterChip,
+                  filter === f.key && styles.filterChipActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterChipText,
+                    filter === f.key && styles.filterChipTextActive,
+                  ]}
+                >
+                  {f.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+          <Pressable style={styles.filterDropdownFixed}>
+            <Feather
+              name="chevron-down"
+              size={18}
+              color={Colors.dark.textTertiary}
+            />
+          </Pressable>
+        </View>
+      )}
 
       <View style={styles.tableHeader}>
         <Pressable
@@ -338,6 +346,7 @@ function SortIndicator({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.dark.background,
     ...(Platform.OS === "web"
       ? { width: "100%", maxWidth: "100%", minWidth: 0, minHeight: 0, overflow: "hidden" as const }
       : {}),
@@ -350,10 +359,12 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     minHeight: 42,
     backgroundColor: Colors.dark.surface,
-    marginHorizontal: 20,
-    marginTop: 4,
-    marginBottom: 4,
-    borderRadius: 10,
+    marginHorizontal: 16,
+    marginTop: 8,
+    marginBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.cardBorder,
   },
   portfolioLeft: {
     flexDirection: "row",
@@ -418,12 +429,13 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 18,
     borderWidth: 1,
-    borderColor: "#252A40",
+    borderColor: Colors.dark.cardBorder,
     justifyContent: "center",
+    backgroundColor: Colors.dark.surface,
   },
   filterChipActive: {
-    backgroundColor: Colors.dark.text,
-    borderColor: Colors.dark.text,
+    backgroundColor: Colors.dark.accent,
+    borderColor: Colors.dark.accent,
   },
   filterChipText: {
     fontSize: 11,
@@ -432,7 +444,7 @@ const styles = StyleSheet.create({
     color: Colors.dark.textSecondary,
   },
   filterChipTextActive: {
-    color: Colors.dark.background,
+    color: "#FFFFFF",
     fontFamily: "Inter_700Bold",
   },
   filterDropdownFixed: {
@@ -450,9 +462,9 @@ const styles = StyleSheet.create({
     paddingRight: 24,
     paddingVertical: 8,
     marginTop: 0,
-    backgroundColor: "#111118",
-    borderBottomWidth: 0.5,
-    borderBottomColor: Colors.dark.divider,
+    backgroundColor: Colors.dark.surfaceElevated,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.dark.cardBorder,
   },
   headerNameCol: {
     flex: 2.2,
@@ -501,9 +513,10 @@ const styles = StyleSheet.create({
     paddingLeft: 20,
     paddingRight: 24,
     paddingVertical: 14,
-    borderBottomWidth: 0.5,
+    borderBottomWidth: 1,
     borderBottomColor: Colors.dark.divider,
     minWidth: 0,
+    backgroundColor: Colors.dark.surface,
   },
   coinNameCol: {
     flex: 2,
