@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, SectionList, Platform, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -26,14 +26,38 @@ const MOCK_RECENT_SEARCHES = [
 export default function ExchangeSearchScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const inputRef = useRef<TextInput>(null);
   const [query, setQuery] = useState("");
   const [recentSearches, setRecentSearches] = useState<string[]>(MOCK_RECENT_SEARCHES);
   const [liveCoins, setLiveCoins] = useState<ExchangeCoin[]>(EXCHANGE_COINS);
+  const [isMobileWeb, setIsMobileWeb] = useState(false);
 
   useEffect(() => {
     loadBithumbExchangeCoins().then((coins) => {
       if (coins.length > 0) setLiveCoins(coins);
     });
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+
+    const update = () => {
+      setIsMobileWeb(window.innerWidth <= 820);
+    };
+
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+
+    const t = window.setTimeout(() => {
+      inputRef.current?.focus();
+    }, 120);
+
+    return () => window.clearTimeout(t);
   }, []);
 
   const filtered = useMemo(() => {
@@ -77,9 +101,10 @@ export default function ExchangeSearchScreen() {
         <View style={styles.searchWrap}>
           <Feather name="search" size={22} color={Colors.dark.textSecondary} />
           <TextInput
+            ref={inputRef}
             value={query}
             onChangeText={setQuery}
-            autoFocus={Platform.OS !== "web"}
+            autoFocus
             placeholder="코인명 또는 심볼 검색"
             placeholderTextColor={Colors.dark.textTertiary}
             selectionColor={Colors.dark.accent}

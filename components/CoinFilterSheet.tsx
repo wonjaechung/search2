@@ -95,6 +95,7 @@ export default function CoinFilterSheet({
   coinsSource,
 }: CoinFilterSheetProps) {
   const insets = useSafeAreaInsets();
+  const [isMobileWeb, setIsMobileWeb] = useState(false);
   const [localFilters, setLocalFilters] = useState<Record<FilterCategoryId, string | null>>({ ...filters });
   const [detailCategory, setDetailCategory] = useState<FilterCategoryId | null>(null);
   const [activeTab, setActiveTab] = useState(0);
@@ -126,6 +127,17 @@ export default function CoinFilterSheet({
   const activeFilterCount = Object.values(localFilters).filter(Boolean).length;
   const resultCount = filterCoins(localFilters, coinsSource).length;
   const currentDetail = detailCategory ? FILTER_CATEGORIES.find(c => c.id === detailCategory) : null;
+  const footerBottomPadding = Platform.OS === "web"
+    ? (isMobileWeb ? 36 : 20)
+    : Math.max(insets.bottom, 20);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+    const update = () => setIsMobileWeb(window.innerWidth <= 820);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   const toggleOption = useCallback((categoryId: FilterCategoryId, optionId: string) => {
     setLocalFilters(prev => ({
@@ -1125,7 +1137,7 @@ export default function CoinFilterSheet({
               )}
             </ScrollView>
 
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+            <View style={[styles.footer, { paddingBottom: footerBottomPadding }]}>
               <Pressable
                 onPress={handleApply}
                 style={({ pressed }) => [
@@ -1332,7 +1344,7 @@ export default function CoinFilterSheet({
               })()}
             </ScrollView>
 
-            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+            <View style={[styles.footer, { paddingBottom: footerBottomPadding }]}>
               <Pressable
                 onPress={handleApply}
                 style={({ pressed }) => [

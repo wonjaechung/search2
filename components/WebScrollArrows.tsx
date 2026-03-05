@@ -28,6 +28,11 @@ export default function WebScrollArrows({
 
   useEffect(() => {
     if (Platform.OS !== "web") return;
+    if (typeof window === "undefined") return;
+
+    // On touch-first devices (mobile Chrome/Safari), keep native horizontal swipe.
+    const canUseMouseDrag = window.matchMedia?.("(pointer: fine)").matches ?? false;
+    if (!canUseMouseDrag) return;
 
     const node = containerRef.current as any;
     if (!node) return;
@@ -113,7 +118,7 @@ export default function WebScrollArrows({
     // Keep vertical page scroll while enabling horizontal mouse drag.
     (scrollContainer.style as any).touchAction = "pan-y";
 
-    if (typeof window !== "undefined" && "PointerEvent" in window) {
+    if ("PointerEvent" in window) {
       el.addEventListener("pointerdown", onPointerDown);
       window.addEventListener("pointermove", onPointerMove);
       window.addEventListener("pointerup", onPointerUp);
@@ -125,7 +130,7 @@ export default function WebScrollArrows({
     el.addEventListener("click", onClickCapture, true);
 
     return () => {
-      if (typeof window !== "undefined" && "PointerEvent" in window) {
+      if ("PointerEvent" in window) {
         el.removeEventListener("pointerdown", onPointerDown);
         window.removeEventListener("pointermove", onPointerMove);
         window.removeEventListener("pointerup", onPointerUp);

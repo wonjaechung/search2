@@ -45,7 +45,6 @@ type TopNavTab = "exchange" | "recommend" | "explore" | "trends";
 const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
   { key: "exchange", label: "거래소" },
   { key: "recommend", label: "추천" },
-  { key: "explore", label: "탐색" },
   { key: "trends", label: "동향" },
 ];
 
