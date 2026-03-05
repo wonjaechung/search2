@@ -14,6 +14,7 @@ import {
   KeyboardAvoidingView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -28,7 +29,6 @@ import ScheduleCalendar from "@/components/ScheduleCalendar";
 import ScheduleDetailSheet from "@/components/ScheduleDetailSheet";
 import WebScrollArrows from "@/components/WebScrollArrows";
 import ExchangeView from "@/components/ExchangeView";
-import CoinFilterSheet from "@/components/CoinFilterSheet";
 import {
   ASSETS,
   getChartData,
@@ -37,7 +37,7 @@ import {
   PRESET_COMPARISONS,
   PresetComparison,
 } from "@/lib/mock-data";
-import { COIN_CATEGORIES, FILTER_CATEGORIES, FilterCategoryId } from "@/lib/coin-data";
+import { COIN_CATEGORIES } from "@/lib/coin-data";
 import { SCHEDULE_ITEMS, ScheduleItem } from "@/lib/schedule-data";
 
 type TopNavTab = "exchange" | "recommend" | "explore" | "trends";
@@ -50,25 +50,9 @@ const TOP_NAV_ITEMS: { key: TopNavTab; label: string }[] = [
 ];
 
 const CUSTOM_PRESETS_KEY = "custom_comparison_presets";
-const EMPTY_EXCHANGE_FILTERS: Record<FilterCategoryId, string | null> = {
-  marketCap: null,
-  changeRate: null,
-  volume: null,
-  rvol: null,
-  category: null,
-  staking: null,
-  lending: null,
-  newListing: null,
-  circulatingRatio: null,
-  athDrop: null,
-  atlRise: null,
-  streakUp: null,
-  streakDown: null,
-  rsi: null,
-  beta: null,
-};
 
 export default function HomeScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [activeTopTab, setActiveTopTab] = useState<TopNavTab>("exchange");
   const [selectedPeriod, setSelectedPeriod] = useState<Period>("24H");
@@ -83,13 +67,6 @@ export default function HomeScreen() {
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [saveTitle, setSaveTitle] = useState("");
   const [showSavedOnly, setShowSavedOnly] = useState(false);
-  const [exchangeSearchOpen, setExchangeSearchOpen] = useState(false);
-  const [exchangeSearchQuery, setExchangeSearchQuery] = useState("");
-  const [exchangeFilterSheetVisible, setExchangeFilterSheetVisible] = useState(false);
-  const [exchangeFilterSheetOpenCategory, setExchangeFilterSheetOpenCategory] = useState<FilterCategoryId | null>(null);
-  const [exchangeAdvancedFilters, setExchangeAdvancedFilters] = useState<Record<FilterCategoryId, string | null>>({
-    ...EMPTY_EXCHANGE_FILTERS,
-  });
   useEffect(() => {
     AsyncStorage.getItem(CUSTOM_PRESETS_KEY).then((val) => {
       if (val) {
@@ -222,237 +199,58 @@ export default function HomeScreen() {
   }, []);
 
   const webTopInset = Platform.OS === "web" ? 16 : 0;
-  const activeExchangeFilters = useMemo(
-    () => Object.entries(exchangeAdvancedFilters).filter(([, value]) => value !== null),
-    [exchangeAdvancedFilters]
-  );
-  const clearExchangeFilters = useCallback(() => {
-    setExchangeAdvancedFilters({ ...EMPTY_EXCHANGE_FILTERS });
-  }, []);
-  const removeExchangeFilter = useCallback((key: FilterCategoryId) => {
-    setExchangeAdvancedFilters((prev) => ({ ...prev, [key]: null }));
-  }, []);
-  const getExchangeFilterValueLabel = useCallback((catId: FilterCategoryId, val: string) => {
-    const cat = FILTER_CATEGORIES.find((c) => c.id === catId);
-    const option = cat?.options.find((o) => o.id === val);
-    if (option?.label) return option.label;
-
-    const pMap: Record<string, string> = {
-      "1h": "1시간",
-      "24h": "24시간",
-      "7d": "7일",
-      "30d": "30일",
-      "90d": "90일",
-      "1y": "1년",
-      "6m": "6개월",
-      "3m": "3개월",
-      "1m": "1개월",
-      all: "전체",
-    };
-
-    if (val.startsWith("customRank:")) {
-      const p = val.replace("customRank:", "").split("-");
-      return `순위 ${p[0]}~${p[1]}위`;
-    }
-    if (val.startsWith("customCap:")) {
-      const p = val.replace("customCap:", "").split("-");
-      return `${p[0]}~${p[1]}조원`;
-    }
-    if (val.startsWith("custom:") && catId === "changeRate") {
-      const p = val.replace("custom:", "").split(":");
-      return `${pMap[p[0]] || p[0]} ${p[2] === "up" ? "+" : "-"}${p[1]}%`;
-    }
-    if (val.startsWith("custom:") && catId === "athDrop") {
-      const p = val.replace("custom:", "").split(":");
-      return `${pMap[p[0]] || p[0]} 기준 -${p[1]}% ${p[2] === "under" ? "이하" : "이상"}`;
-    }
-    if (val.startsWith("custom:") && catId === "atlRise") {
-      const p = val.replace("custom:", "").split(":");
-      return `${pMap[p[0]] || p[0]} 기준 +${p[1]}% ${p[2] === "under" ? "이하" : "이상"}`;
-    }
-    if (val.startsWith("custom:") && catId === "rsi") {
-      const p = val.replace("custom:", "").split(":");
-      return `RSI ${p[0]}~${p[1]}`;
-    }
-    if (val.startsWith("custom:") && catId === "beta") {
-      const p = val.replace("custom:", "").split(":");
-      return `${p[0]}~${p[1]}`;
-    }
-    if (val.startsWith("customVol:")) {
-      const parts = val.replace("customVol:", "").split("-");
-      return `${parts[0]}~${parts[1]}억`;
-    }
-    if (val.startsWith("customRvol:")) {
-      const raw = val.replace("customRvol:", "");
-      const parts = raw.split(":");
-      const period = parts.length === 2 ? parts[0] : "30d";
-      const mult = parts.length === 2 ? parts[1] : raw;
-      const pLabel = period === "24h" ? "24시간" : period === "7d" ? "7일" : "30일";
-      return `${pLabel} RVOL ${mult}배+`;
-    }
-    return val;
-  }, []);
 
   return (
     <View style={styles.screen}>
       <StatusBar barStyle="light-content" />
 
       <View style={{ paddingTop: Platform.OS === "web" ? webTopInset : insets.top }}>
-        {activeTopTab === "exchange" && exchangeSearchOpen ? (
-          <View style={styles.searchHeaderContainer}>
-            <View style={styles.searchHeaderWrap}>
-              <View style={styles.searchHeaderInputWrap}>
-                <Feather name="search" size={20} color={Colors.dark.textSecondary} />
-                <TextInput
-                  value={exchangeSearchQuery}
-                  onChangeText={setExchangeSearchQuery}
-                  placeholder="코인명 또는 심볼 검색"
-                  placeholderTextColor={Colors.dark.textTertiary}
-                  selectionColor={Colors.dark.accent}
-                  cursorColor={Colors.dark.accent}
-                  autoFocus
-                  style={styles.searchHeaderInput}
-                />
-              </View>
+        <View style={styles.topNavContainer}>
+          <View style={styles.topNav}>
+            {TOP_NAV_ITEMS.map((item) => (
               <Pressable
+                key={item.key}
                 onPress={() => {
-                  setExchangeSearchOpen(false);
-                  setExchangeSearchQuery("");
+                  if (Platform.OS !== "web") {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }
+                  setActiveTopTab(item.key);
                 }}
-                style={styles.searchCancelBtn}
               >
-                <Text style={styles.searchCancelText}>취소</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  setExchangeFilterSheetOpenCategory(null);
-                  setExchangeFilterSheetVisible(true);
-                }}
-                style={[
-                  styles.searchHeaderInlineFilterButton,
-                  activeExchangeFilters.length > 0 && styles.searchHeaderInlineFilterButtonActive,
-                ]}
-              >
-                <Feather
-                  name="plus"
-                  size={13}
-                  color={Colors.dark.accent}
-                />
                 <Text
-                  style={[
-                    styles.searchHeaderInlineFilterText,
-                    activeExchangeFilters.length > 0 && styles.searchHeaderInlineFilterTextActive,
-                  ]}
+                  style={
+                    activeTopTab === item.key
+                      ? styles.topNavActive
+                      : styles.topNavInactive
+                  }
                 >
-                  필터{activeExchangeFilters.length > 0 ? ` ${activeExchangeFilters.length}` : ""}
+                  {item.label}
                 </Text>
               </Pressable>
-            </View>
-            {activeExchangeFilters.length > 0 && (
-              <View style={styles.searchFilterRow}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.searchFilterChipScroll}
-                >
-                  {activeExchangeFilters.map(([key]) => {
-                    const typedKey = key as FilterCategoryId;
-                    const title = FILTER_CATEGORIES.find((c) => c.id === typedKey)?.title ?? key;
-                    const valueLabel = getExchangeFilterValueLabel(typedKey, String(exchangeAdvancedFilters[typedKey]));
-                    return (
-                      <Pressable
-                        key={key}
-                        onPress={() => {
-                          setExchangeFilterSheetOpenCategory(typedKey);
-                          setExchangeFilterSheetVisible(true);
-                        }}
-                        style={styles.searchFilterCard}
-                      >
-                        <Text style={styles.searchFilterCardText}>
-                          <Text style={styles.searchFilterCardCategory}>{title}</Text>
-                          {"\n"}
-                          <Text style={styles.searchFilterCardValue}>{valueLabel}</Text>
-                        </Text>
-                        <View style={styles.searchFilterCardActions}>
-                          <Feather name="chevron-down" size={12} color={Colors.dark.textSecondary} />
-                          <Pressable
-                            onPress={(e) => {
-                              e.stopPropagation();
-                              removeExchangeFilter(typedKey);
-                            }}
-                            hitSlop={8}
-                            style={styles.searchFilterCardClose}
-                          >
-                            <Feather name="x" size={11} color={Colors.dark.textTertiary} />
-                          </Pressable>
-                        </View>
-                      </Pressable>
-                    );
-                  })}
-                  <Pressable onPress={clearExchangeFilters} style={styles.searchFilterClearBtn}>
-                    <Text style={styles.searchFilterClearText}>전체 해제</Text>
-                  </Pressable>
-                </ScrollView>
-              </View>
-            )}
+            ))}
           </View>
-        ) : (
-          <View style={styles.topNavContainer}>
-            <View style={styles.topNav}>
-              {TOP_NAV_ITEMS.map((item) => (
-                <Pressable
-                  key={item.key}
-                  onPress={() => {
-                    if (Platform.OS !== "web") {
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    }
-                    setActiveTopTab(item.key);
-                    if (item.key !== "exchange") {
-                      setExchangeSearchOpen(false);
-                      setExchangeSearchQuery("");
-                    }
-                  }}
-                >
-                  <Text
-                    style={
-                      activeTopTab === item.key
-                        ? styles.topNavActive
-                        : styles.topNavInactive
-                    }
-                  >
-                    {item.label}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-            <View style={styles.topNavIcons}>
-              <Pressable
-                style={styles.topNavIconBtn}
-                onPress={() => {
-                  if (activeTopTab === "exchange") {
-                    setExchangeSearchOpen(true);
-                  }
-                }}
-              >
-                <Feather name="search" size={20} color={Colors.dark.text} />
-              </Pressable>
-              <Pressable style={styles.topNavIconBtn}>
-                <Ionicons name="notifications-outline" size={20} color={Colors.dark.text} />
-              </Pressable>
-              <Pressable style={styles.topNavIconBtn}>
-                <Ionicons name="settings-outline" size={20} color={Colors.dark.text} />
-              </Pressable>
-            </View>
+          <View style={styles.topNavIcons}>
+            <Pressable
+              style={styles.topNavIconBtn}
+              onPress={() => {
+                if (activeTopTab === "exchange") {
+                  router.push("/exchange-search");
+                }
+              }}
+            >
+              <Feather name="search" size={20} color={Colors.dark.text} />
+            </Pressable>
+            <Pressable style={styles.topNavIconBtn}>
+              <Ionicons name="notifications-outline" size={20} color={Colors.dark.text} />
+            </Pressable>
+            <Pressable style={styles.topNavIconBtn}>
+              <Ionicons name="settings-outline" size={20} color={Colors.dark.text} />
+            </Pressable>
           </View>
-        )}
+        </View>
       </View>
 
-      {activeTopTab === "exchange" && (
-        <ExchangeView
-          searchQuery={exchangeSearchQuery}
-          advancedFilters={exchangeAdvancedFilters}
-        />
-      )}
+      {activeTopTab === "exchange" && <ExchangeView />}
 
       {activeTopTab === "explore" && (<ScrollView
         style={styles.scrollView}
@@ -667,17 +465,6 @@ export default function HomeScreen() {
         }}
         items={SCHEDULE_ITEMS}
         initialEventItem={scheduleEventItem}
-      />
-
-      <CoinFilterSheet
-        visible={exchangeFilterSheetVisible}
-        onClose={() => {
-          setExchangeFilterSheetVisible(false);
-          setExchangeFilterSheetOpenCategory(null);
-        }}
-        filters={exchangeAdvancedFilters}
-        onApply={setExchangeAdvancedFilters}
-        initialOpenCategory={exchangeFilterSheetOpenCategory}
       />
 
       <Modal

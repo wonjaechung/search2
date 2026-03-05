@@ -62,6 +62,8 @@ function RootLayoutNav() {
   return (
     <Stack screenOptions={{ headerBackTitle: "Back" }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="exchange-search" options={{ headerShown: false }} />
+      <Stack.Screen name="order-placeholder" options={{ headerShown: false }} />
     </Stack>
   );
 }

@@ -1,200 +1,186 @@
 export interface ExchangeCoin {
   id: string;
+  market: string;
+  quoteCurrency: "KRW" | "BTC";
   name: string;
   symbol: string;
   price: number;
   priceFormatted: string;
   changePercent: number;
   volume: string;
+  accTradePrice24h: number;
   tags?: string[];
   category: string[];
 }
 
+type BithumbMarket = {
+  market: string;
+  korean_name: string;
+  english_name: string;
+};
+
+type BithumbTicker = {
+  market: string;
+  trade_price: number;
+  signed_change_rate: number;
+  acc_trade_price_24h: number;
+};
+
+function formatPrice(quote: "KRW" | "BTC", price: number): string {
+  if (quote === "KRW") {
+    if (price >= 1) return Math.round(price).toLocaleString("ko-KR");
+    return price.toFixed(4).replace(/0+$/, "").replace(/\.$/, "");
+  }
+  return price.toFixed(8).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function formatVolumeKrw(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  const eok = value / 100_000_000;
+  if (eok >= 10_000) return `${(eok / 10_000).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}조`;
+  if (eok >= 1) return `${eok.toFixed(0)}억`;
+  return `${(value / 1_000_000).toFixed(0)}백만`;
+}
+
+function formatVolumeBtc(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "0 BTC";
+  return `${value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")} BTC`;
+}
+
+function toExchangeCoin(marketInfo: BithumbMarket, ticker: BithumbTicker): ExchangeCoin | null {
+  const [quote, base] = marketInfo.market.split("-");
+  if (quote !== "KRW" && quote !== "BTC") return null;
+
+  const quoteCurrency = quote as "KRW" | "BTC";
+  const changePercent = (ticker.signed_change_rate ?? 0) * 100;
+  const accTradePrice24h = ticker.acc_trade_price_24h ?? 0;
+  const majorSymbols = new Set(["BTC", "ETH", "XRP", "SOL", "ADA", "DOGE", "TRX", "AVAX", "LINK", "DOT"]);
+
+  return {
+    id: `${quote}-${base}`.toLowerCase(),
+    market: marketInfo.market,
+    quoteCurrency,
+    name: marketInfo.korean_name || base,
+    symbol: base,
+    price: ticker.trade_price ?? 0,
+    priceFormatted: formatPrice(quoteCurrency, ticker.trade_price ?? 0),
+    changePercent,
+    volume: quoteCurrency === "KRW" ? formatVolumeKrw(accTradePrice24h) : formatVolumeBtc(accTradePrice24h),
+    accTradePrice24h,
+    category: [
+      "all",
+      ...(changePercent > 0 ? ["rising"] : []),
+      ...(majorSymbols.has(base) ? ["major"] : []),
+    ],
+  };
+}
+
+async function fetchTickersChunk(markets: string[]): Promise<BithumbTicker[]> {
+  if (markets.length === 0) return [];
+  const url = `https://api.bithumb.com/v1/ticker?markets=${markets.join(",")}`;
+  const response = await fetch(url, { headers: { accept: "application/json" } });
+  if (!response.ok) throw new Error(`ticker fetch failed: ${response.status}`);
+  return response.json();
+}
+
+let bithumbCoinsCache: ExchangeCoin[] | null = null;
+let bithumbCoinsPromise: Promise<ExchangeCoin[]> | null = null;
+
+export async function loadBithumbExchangeCoins(): Promise<ExchangeCoin[]> {
+  if (bithumbCoinsCache) return bithumbCoinsCache;
+  if (bithumbCoinsPromise) return bithumbCoinsPromise;
+
+  bithumbCoinsPromise = (async () => {
+    try {
+      const marketRes = await fetch("https://api.bithumb.com/v1/market/all?isDetails=false", {
+        headers: { accept: "application/json" },
+      });
+      if (!marketRes.ok) throw new Error(`market fetch failed: ${marketRes.status}`);
+      const allMarkets = (await marketRes.json()) as BithumbMarket[];
+
+      const targetMarkets = allMarkets.filter((m) => m.market.startsWith("KRW-") || m.market.startsWith("BTC-"));
+      const tickers: BithumbTicker[] = [];
+      const chunkSize = 80;
+
+      for (let i = 0; i < targetMarkets.length; i += chunkSize) {
+        const chunk = targetMarkets.slice(i, i + chunkSize).map((m) => m.market);
+        const part = await fetchTickersChunk(chunk);
+        tickers.push(...part);
+      }
+
+      const tickerMap = new Map(tickers.map((t) => [t.market, t]));
+      const coins = targetMarkets
+        .map((m) => {
+          const ticker = tickerMap.get(m.market);
+          if (!ticker) return null;
+          return toExchangeCoin(m, ticker);
+        })
+        .filter(Boolean) as ExchangeCoin[];
+
+      bithumbCoinsCache = coins.sort((a, b) => b.accTradePrice24h - a.accTradePrice24h);
+      return bithumbCoinsCache;
+    } catch {
+      return EXCHANGE_COINS;
+    } finally {
+      bithumbCoinsPromise = null;
+    }
+  })();
+
+  return bithumbCoinsPromise;
+}
+
 export const EXCHANGE_COINS: ExchangeCoin[] = [
   {
-    id: "usdt",
-    name: "테더",
-    symbol: "USDT",
-    price: 1457,
-    priceFormatted: "1,457",
-    changePercent: -0.07,
-    volume: "234,841백만",
-    category: ["all", "major"],
-  },
-  {
-    id: "xrp",
-    name: "엑스알피 [리플]",
-    symbol: "XRP",
-    price: 1985,
-    priceFormatted: "1,985",
-    changePercent: 0.10,
-    volume: "139,529백만",
-    category: ["all", "major", "rising"],
-  },
-  {
-    id: "btc",
+    id: "krw-btc",
+    market: "KRW-BTC",
+    quoteCurrency: "KRW",
     name: "비트코인",
     symbol: "BTC",
-    price: 96373000,
-    priceFormatted: "96,373,000",
-    changePercent: 0.30,
-    volume: "107,825백만",
-    tags: ["🔥"],
+    price: 105_751_000,
+    priceFormatted: "105,751,000",
+    changePercent: 1.31,
+    volume: "1,890억",
+    accTradePrice24h: 189_061_523_542,
     category: ["all", "major", "rising"],
   },
   {
-    id: "eth",
+    id: "krw-eth",
+    market: "KRW-ETH",
+    quoteCurrency: "KRW",
     name: "이더리움",
     symbol: "ETH",
-    price: 2844000,
-    priceFormatted: "2,844,000",
-    changePercent: 0.32,
-    volume: "80,363백만",
-    tags: ["🔥"],
+    price: 4_120_000,
+    priceFormatted: "4,120,000",
+    changePercent: 0.88,
+    volume: "820억",
+    accTradePrice24h: 82_000_000_000,
     category: ["all", "major", "rising"],
   },
   {
-    id: "hum",
-    name: "휴머니티",
-    symbol: "H",
-    price: 170,
-    priceFormatted: "170",
-    changePercent: 6.92,
-    volume: "29,529백만",
-    tags: ["주"],
-    category: ["all", "rising"],
-  },
-  {
-    id: "sol",
+    id: "krw-sol",
+    market: "KRW-SOL",
+    quoteCurrency: "KRW",
     name: "솔라나",
     symbol: "SOL",
-    price: 120700,
+    price: 120_700,
     priceFormatted: "120,700",
     changePercent: 0.42,
-    volume: "26,460백만",
-    tags: ["🔥"],
+    volume: "264억",
+    accTradePrice24h: 26_460_000_000,
     category: ["all", "major", "rising"],
   },
   {
-    id: "sahara",
-    name: "사하라에이아이",
-    symbol: "SAHARA",
-    price: 32.56,
-    priceFormatted: "32.56",
-    changePercent: -3.58,
-    volume: "23,197백만",
-    tags: ["주"],
-    category: ["all"],
-  },
-  {
-    id: "enso",
-    name: "엔소",
-    symbol: "ENSO",
-    price: 2121,
-    priceFormatted: "2,121",
-    changePercent: 0.57,
-    volume: "17,559백만",
-    category: ["all", "rising"],
-  },
-  {
-    id: "virtual",
-    name: "버추얼 프로토콜",
-    symbol: "VIRTUAL",
-    price: 1823,
-    priceFormatted: "1,823",
-    changePercent: 2.14,
-    volume: "15,230백만",
-    category: ["all", "rising"],
-  },
-  {
-    id: "doge",
-    name: "도지코인",
-    symbol: "DOGE",
-    price: 225,
-    priceFormatted: "225",
-    changePercent: 1.05,
-    volume: "12,891백만",
-    category: ["all", "major", "rising"],
-  },
-  {
-    id: "ada",
-    name: "에이다",
-    symbol: "ADA",
-    price: 742,
-    priceFormatted: "742",
-    changePercent: -0.94,
-    volume: "11,204백만",
+    id: "btc-eth",
+    market: "BTC-ETH",
+    quoteCurrency: "BTC",
+    name: "이더리움",
+    symbol: "ETH",
+    price: 0.03923841,
+    priceFormatted: "0.03923841",
+    changePercent: -0.18,
+    volume: "187 BTC",
+    accTradePrice24h: 187,
     category: ["all", "major"],
-  },
-  {
-    id: "trx",
-    name: "트론",
-    symbol: "TRX",
-    price: 329,
-    priceFormatted: "329",
-    changePercent: 0.61,
-    volume: "9,876백만",
-    category: ["all"],
-  },
-  {
-    id: "avax",
-    name: "아발란체",
-    symbol: "AVAX",
-    price: 25400,
-    priceFormatted: "25,400",
-    changePercent: -1.23,
-    volume: "8,543백만",
-    category: ["all", "major"],
-  },
-  {
-    id: "link",
-    name: "체인링크",
-    symbol: "LINK",
-    price: 16200,
-    priceFormatted: "16,200",
-    changePercent: 0.87,
-    volume: "7,210백만",
-    category: ["all", "rising"],
-  },
-  {
-    id: "dot",
-    name: "폴카닷",
-    symbol: "DOT",
-    price: 4980,
-    priceFormatted: "4,980",
-    changePercent: -0.40,
-    volume: "6,532백만",
-    category: ["all"],
-  },
-  {
-    id: "matic",
-    name: "폴리곤",
-    symbol: "MATIC",
-    price: 532,
-    priceFormatted: "532",
-    changePercent: 1.34,
-    volume: "5,891백만",
-    category: ["all", "rising"],
-  },
-  {
-    id: "shib",
-    name: "시바이누",
-    symbol: "SHIB",
-    price: 0.0148,
-    priceFormatted: "0.0148",
-    changePercent: 3.21,
-    volume: "5,120백만",
-    category: ["all", "rising"],
-  },
-  {
-    id: "atom",
-    name: "코스모스",
-    symbol: "ATOM",
-    price: 6340,
-    priceFormatted: "6,340",
-    changePercent: -0.63,
-    volume: "4,567백만",
-    category: ["all"],
   },
 ];
 

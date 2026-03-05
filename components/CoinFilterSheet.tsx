@@ -15,7 +15,7 @@ import * as Haptics from "expo-haptics";
 import Animated, { useAnimatedStyle, withTiming, FadeIn, SlideInRight, SlideInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Colors from "@/constants/colors";
-import { FILTER_CATEGORIES, FILTER_GROUPS, FilterCategoryId, FilterCategory, filterCoins } from "@/lib/coin-data";
+import { FILTER_CATEGORIES, FILTER_GROUPS, FilterCategoryId, FilterCategory, CoinItem, filterCoins } from "@/lib/coin-data";
 import { getScreenWidth, getScreenHeight } from "@/lib/screen-utils";
 import WebModalWrapper from "./WebModalWrapper";
 
@@ -33,6 +33,7 @@ interface CoinFilterSheetProps {
   filters: Record<FilterCategoryId, string | null>;
   onApply: (filters: Record<FilterCategoryId, string | null>) => void;
   initialOpenCategory?: FilterCategoryId | null;
+  coinsSource?: CoinItem[];
 }
 
 function FilterOptionRow({ option, isSelected, onPress }: {
@@ -85,7 +86,14 @@ function FilterCategoryRow({ category, hasSelection, onPress }: {
   );
 }
 
-export default function CoinFilterSheet({ visible, onClose, filters, onApply, initialOpenCategory }: CoinFilterSheetProps) {
+export default function CoinFilterSheet({
+  visible,
+  onClose,
+  filters,
+  onApply,
+  initialOpenCategory,
+  coinsSource,
+}: CoinFilterSheetProps) {
   const insets = useSafeAreaInsets();
   const [localFilters, setLocalFilters] = useState<Record<FilterCategoryId, string | null>>({ ...filters });
   const [detailCategory, setDetailCategory] = useState<FilterCategoryId | null>(null);
@@ -116,7 +124,7 @@ export default function CoinFilterSheet({ visible, onClose, filters, onApply, in
   const [betaDir, setBetaDir] = useState<"same" | "opp">("same");
 
   const activeFilterCount = Object.values(localFilters).filter(Boolean).length;
-  const resultCount = filterCoins(localFilters).length;
+  const resultCount = filterCoins(localFilters, coinsSource).length;
   const currentDetail = detailCategory ? FILTER_CATEGORIES.find(c => c.id === detailCategory) : null;
 
   const toggleOption = useCallback((categoryId: FilterCategoryId, optionId: string) => {

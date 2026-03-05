@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -49,7 +50,11 @@ interface CoinListSheetProps {
   initialTitle?: string;
   initialFilters?: Record<FilterCategoryId, string | null>;
   initialTheme?: ThemeItem | null;
+  coinsSource?: CoinItem[];
   onSaveFilter?: (filters: Record<FilterCategoryId, string | null>, name: string) => void;
+  saveMode?: "default" | "choose";
+  onSaveAsNewFilter?: (filters: Record<FilterCategoryId, string | null>, name: string) => void | Promise<void>;
+  onUpdateExistingFilter?: (filters: Record<FilterCategoryId, string | null>, name: string) => void | Promise<void>;
 }
 
 function parseKoreanNumber(str: string): number {
@@ -80,8 +85,13 @@ export default function CoinListSheet({
   initialTitle,
   initialFilters,
   initialTheme,
+  coinsSource,
   onSaveFilter,
+  saveMode = "default",
+  onSaveAsNewFilter,
+  onUpdateExistingFilter,
 }: CoinListSheetProps) {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("rank");
@@ -108,6 +118,11 @@ export default function CoinListSheet({
   const [filterSaved, setFilterSaved] = useState(false);
   const [saveNameVisible, setSaveNameVisible] = useState(false);
   const [saveNameText, setSaveNameText] = useState("");
+  const [saveOptionVisible, setSaveOptionVisible] = useState(false);
+  const [pendingSave, setPendingSave] = useState<{
+    filters: Record<FilterCategoryId, string | null>;
+    name: string;
+  } | null>(null);
 
   const generateDefaultName = useCallback((f: Record<FilterCategoryId, string | null>) => {
     if (initialTheme) return initialTheme.title;
@@ -127,20 +142,29 @@ export default function CoinListSheet({
   }, [hasActiveFilters, filters, generateDefaultName]);
 
   const confirmSave = useCallback(() => {
-    if (!onSaveFilter) return;
     const name = saveNameText.trim() || generateDefaultName(filters);
-    onSaveFilter({ ...filters }, name);
+    const payload = { filters: { ...filters }, name };
     setSaveNameVisible(false);
+
+    if (saveMode === "choose" && onSaveAsNewFilter && onUpdateExistingFilter) {
+      setPendingSave(payload);
+      setSaveOptionVisible(true);
+      return;
+    }
+
+    if (!onSaveFilter) return;
+    onSaveFilter(payload.filters, payload.name);
     setFilterSaved(true);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setFilterSaved(false), 2000);
-  }, [filters, saveNameText, onSaveFilter, generateDefaultName]);
+  }, [filters, saveNameText, generateDefaultName, saveMode, onSaveFilter, onSaveAsNewFilter, onUpdateExistingFilter]);
 
   const baseCoins = useMemo(() => {
+    const source = coinsSource ?? ALL_COINS;
     const hasFilter = Object.values(filters).some(v => v !== null);
-    if (hasFilter) return filterCoins(filters);
-    return [...ALL_COINS];
-  }, [filters]);
+    if (hasFilter) return filterCoins(filters, source);
+    return [...source];
+  }, [filters, coinsSource]);
 
   const filteredCoins = useMemo(() => {
     let coins = baseCoins;
@@ -186,6 +210,20 @@ export default function CoinListSheet({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     onClose();
   }, [onClose]);
+
+  const navigateToOrderPlaceholder = useCallback(
+    (coin: CoinItem) => {
+      // Close modal first, then navigate so the new screen is visible immediately.
+      onClose();
+      setTimeout(() => {
+        router.push({
+          pathname: "/order-placeholder",
+          params: { name: coin.name, symbol: coin.symbol },
+        });
+      }, Platform.OS === "web" ? 0 : 180);
+    },
+    [onClose, router],
+  );
 
   const removeFilter = useCallback((catId: FilterCategoryId) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -368,7 +406,11 @@ export default function CoinListSheet({
                 contentContainerStyle={{ paddingBottom: (hasActiveFilters ? 90 : 0) + (Platform.OS === "web" ? 34 : insets.bottom + 16) }}
               >
                 {sortedCoins.map((coin) => (
-                  <View key={coin.id} style={[styles.fixedRow, { height: ROW_HEIGHT }]}>
+                  <Pressable
+                    key={coin.id}
+                    style={[styles.fixedRow, { height: ROW_HEIGHT }]}
+                    onPress={() => navigateToOrderPlaceholder(coin)}
+                  >
                     <View style={[styles.coinIcon, { backgroundColor: `${coin.iconColor}15` }]}>
                       <CoinIcon coin={coin} />
                     </View>
@@ -376,7 +418,7 @@ export default function CoinListSheet({
                       <Text style={styles.coinName} numberOfLines={1}>{coin.name}</Text>
                       <Text style={styles.coinTicker}>{coin.symbol}</Text>
                     </View>
-                  </View>
+                  </Pressable>
                 ))}
               </ScrollView>
             </View>
@@ -398,7 +440,11 @@ export default function CoinListSheet({
                   contentContainerStyle={{ paddingBottom: (hasActiveFilters ? 90 : 0) + (Platform.OS === "web" ? 34 : insets.bottom + 16) }}
                 >
                   {sortedCoins.map((coin) => (
-                    <View key={coin.id} style={[styles.scrollRow, { height: ROW_HEIGHT }]}>
+                    <Pressable
+                      key={coin.id}
+                      style={[styles.scrollRow, { height: ROW_HEIGHT }]}
+                      onPress={() => navigateToOrderPlaceholder(coin)}
+                    >
                       <View style={styles.dataCell}>
                         <Text style={[styles.dataCellText, { color: coin.change >= 0 ? Colors.dark.positive : Colors.dark.negative }]}>
                           {fmtPct(coin.change)}
@@ -420,7 +466,7 @@ export default function CoinListSheet({
                       <View style={[styles.dataCell, { width: WIDE_COL_WIDTH }]}>
                         <Text style={styles.dataCellWhite}>{coin.marketCap ?? "-"}</Text>
                       </View>
-                    </View>
+                    </Pressable>
                   ))}
                 </ScrollView>
               </View>
@@ -436,6 +482,7 @@ export default function CoinListSheet({
           setFilterSheetOpenCategory(null);
         }}
         filters={filters}
+        coinsSource={coinsSource}
         onApply={(newFilters) => {
           setFilters(newFilters);
         }}
@@ -468,6 +515,53 @@ export default function CoinListSheet({
                 style={({ pressed }) => [styles.saveNameBtn, styles.saveNameConfirmBtn, pressed && { opacity: 0.7 }]}
               >
                 <Text style={styles.saveNameConfirmText}>저장</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      )}
+
+      {saveOptionVisible && (
+        <Pressable
+          style={styles.saveNameOverlay}
+          onPress={() => {
+            setSaveOptionVisible(false);
+            setPendingSave(null);
+          }}
+        >
+          <Pressable style={styles.saveNameModal} onPress={() => {}}>
+            <Text style={styles.saveNameTitle}>저장 방식 선택</Text>
+            <Text style={styles.saveNameSubtitle}>
+              현재 필터를 기존에 덮어쓸지, 새 필터로 저장할지 선택하세요.
+            </Text>
+            <View style={styles.saveNameActionsColumn}>
+              <Pressable
+                onPress={async () => {
+                  if (!pendingSave || !onSaveAsNewFilter) return;
+                  await onSaveAsNewFilter(pendingSave.filters, pendingSave.name);
+                  setSaveOptionVisible(false);
+                  setPendingSave(null);
+                  setFilterSaved(true);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  setTimeout(() => setFilterSaved(false), 2000);
+                }}
+                style={({ pressed }) => [styles.saveNameBtn, styles.saveNameCancelBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={styles.saveNameCancelText}>새 필터로 저장</Text>
+              </Pressable>
+              <Pressable
+                onPress={async () => {
+                  if (!pendingSave || !onUpdateExistingFilter) return;
+                  await onUpdateExistingFilter(pendingSave.filters, pendingSave.name);
+                  setSaveOptionVisible(false);
+                  setPendingSave(null);
+                  setFilterSaved(true);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                  setTimeout(() => setFilterSaved(false), 2000);
+                }}
+                style={({ pressed }) => [styles.saveNameBtn, styles.saveNameConfirmBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={styles.saveNameConfirmText}>기존 필터 업데이트</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -710,6 +804,13 @@ const styles = StyleSheet.create({
     color: Colors.dark.text,
     textAlign: "center" as const,
   },
+  saveNameSubtitle: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+    color: Colors.dark.textSecondary,
+    textAlign: "center" as const,
+    lineHeight: 18,
+  },
   saveNameInput: {
     backgroundColor: Colors.dark.surface,
     borderRadius: 10,
@@ -723,6 +824,9 @@ const styles = StyleSheet.create({
   },
   saveNameActions: {
     flexDirection: "row" as const,
+    gap: 10,
+  },
+  saveNameActionsColumn: {
     gap: 10,
   },
   saveNameBtn: {

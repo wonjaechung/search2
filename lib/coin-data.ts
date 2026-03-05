@@ -332,8 +332,11 @@ export const ALL_COINS: CoinItem[] = [
   { id: "hnt", name: "헬륨", symbol: "HNT", iconType: "feather", iconName: "radio", iconColor: "#474DFF", change: 3.8, change1h: 0.7, price: "9,200", marketCap: "1.2조", rank: 22, changeWeek: 5.5, changeMonth: 8.9, volume24h: "280억", rVol: 1.3, category: "infra", tags: ["infra", "depin"], stakable: false, lendable: false, circulatingRatio: 78, athDrop: { all: 82, y1: 70, m6: 55, m3: 35 }, atlRise: { all: 45, y1: 15, m6: 8, m3: 3 }, streak: 1, rsi: 33, beta: 0.28 },
 ];
 
-export function filterCoins(filters: Record<FilterCategoryId, string | null>): CoinItem[] {
-  return ALL_COINS.filter(coin => {
+export function filterCoins(
+  filters: Record<FilterCategoryId, string | null>,
+  sourceCoins: CoinItem[] = ALL_COINS,
+): CoinItem[] {
+  return sourceCoins.filter(coin => {
     if (filters.marketCap) {
       const f = filters.marketCap;
       if (f.startsWith("customRank:")) {

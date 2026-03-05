@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Colors from "@/constants/colors";
 import { FilterCategoryId, filterCoins } from "@/lib/coin-data";
+import { getFavoriteMarkets } from "@/lib/favorites";
 import {
   EXCHANGE_COINS,
   EXCHANGE_SUB_TABS,
@@ -20,6 +21,7 @@ import {
   ExchangeCoin,
   ExchangeSubTab,
   ExchangeFilter,
+  loadBithumbExchangeCoins,
 } from "@/lib/exchange-data";
 
 type SortKey = "name" | "price" | "change" | "volume";
@@ -66,6 +68,8 @@ export default function ExchangeView({
   advancedFilters?: Record<FilterCategoryId, string | null>;
 }) {
   const insets = useSafeAreaInsets();
+  const [liveCoins, setLiveCoins] = useState<ExchangeCoin[]>(EXCHANGE_COINS);
+  const [favoriteMarkets, setFavoriteMarkets] = useState<string[]>([]);
   const [subTab, setSubTab] = useState<ExchangeSubTab>("krw");
   const [filter, setFilter] = useState<ExchangeFilter>("all");
   const [sortKey, setSortKey] = useState<SortKey>("volume");
@@ -92,13 +96,36 @@ export default function ExchangeView({
     [sortKey],
   );
 
+  useEffect(() => {
+    loadBithumbExchangeCoins().then((coins) => {
+      if (coins.length > 0) setLiveCoins(coins);
+    });
+  }, []);
+
+  useEffect(() => {
+    getFavoriteMarkets().then(setFavoriteMarkets);
+  }, []);
+
+  useEffect(() => {
+    if (subTab === "favorites") {
+      getFavoriteMarkets().then(setFavoriteMarkets);
+    }
+  }, [subTab]);
+
   const filteredCoins = useMemo(() => {
-    let coins = EXCHANGE_COINS;
+    let coins = liveCoins;
+    if (subTab === "krw") {
+      coins = coins.filter((c) => c.quoteCurrency === "KRW");
+    } else if (subTab === "btc") {
+      coins = coins.filter((c) => c.quoteCurrency === "BTC");
+    }
     if (filter !== "all") {
       coins = coins.filter((c) => c.category.includes(filter));
     }
-    if (subTab === "owned" || subTab === "favorites") {
+    if (subTab === "owned") {
       coins = [];
+    } else if (subTab === "favorites") {
+      coins = coins.filter((c) => favoriteMarkets.includes(c.market));
     }
     if (advancedSymbols) {
       coins = coins.filter((c) => advancedSymbols.has(c.symbol.toLowerCase()));
@@ -123,13 +150,13 @@ export default function ExchangeView({
           cmp = a.changePercent - b.changePercent;
           break;
         case "volume":
-          cmp = 0;
+          cmp = a.accTradePrice24h - b.accTradePrice24h;
           break;
       }
       return sortDir === "asc" ? cmp : -cmp;
     });
     return sorted;
-  }, [filter, subTab, sortKey, sortDir, searchQuery, advancedSymbols]);
+  }, [liveCoins, filter, subTab, sortKey, sortDir, searchQuery, advancedSymbols, favoriteMarkets]);
 
   const renderCoin = useCallback(
     ({ item }: { item: ExchangeCoin }) => <CoinRow coin={item} />,
