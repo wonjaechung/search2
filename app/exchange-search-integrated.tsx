@@ -285,7 +285,7 @@ export default function ExchangeSearchIntegratedScreen() {
           style={styles.searchInput}
           value={query}
           onChangeText={setQuery}
-          placeholder="자산을 입력해주세요."
+          placeholder="코인명 또는 심볼 검색"
           placeholderTextColor={Colors.dark.textTertiary}
         />
       </View>
