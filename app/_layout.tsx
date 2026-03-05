@@ -69,12 +69,30 @@ function RootLayoutNav() {
 }
 
 function WebMobileWrapper({ children }: { children: React.ReactNode }) {
+  const [isMobileWeb, setIsMobileWeb] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof window === "undefined") return;
+
+    const update = () => {
+      setIsMobileWeb(window.innerWidth <= 820);
+    };
+
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
   if (Platform.OS !== "web") {
     return <>{children}</>;
   }
+
+  const outerStyle = isMobileWeb ? webStyles.outerContainerMobile : webStyles.outerContainer;
+  const frameStyle = isMobileWeb ? webStyles.phoneFrameMobile : webStyles.phoneFrame;
+
   return (
-    <View style={webStyles.outerContainer}>
-      <View style={webStyles.phoneFrame}>
+    <View style={outerStyle}>
+      <View style={frameStyle}>
         {children}
       </View>
     </View>
@@ -91,6 +109,19 @@ const webStyles = StyleSheet.create({
       ? { minHeight: "100vh" as any }
       : {}),
   },
+  outerContainerMobile: {
+    flex: 1,
+    width: "100%",
+    alignItems: "stretch",
+    justifyContent: "flex-start",
+    backgroundColor: "#000000",
+    ...(Platform.OS === "web"
+      ? {
+          minHeight: "100dvh" as any,
+          overscrollBehavior: "none" as any,
+        }
+      : {}),
+  },
   phoneFrame: {
     width: "100%",
     maxWidth: 430,
@@ -105,6 +136,24 @@ const webStyles = StyleSheet.create({
           overflow: "hidden" as const,
           display: "flex" as any,
           flexDirection: "column" as any,
+        }
+      : { overflow: "hidden" as const }),
+  },
+  phoneFrameMobile: {
+    width: "100%",
+    maxWidth: "100%",
+    flex: 1,
+    backgroundColor: "#0D0F14",
+    ...(Platform.OS === "web"
+      ? {
+          height: "100dvh" as any,
+          maxHeight: "100dvh" as any,
+          boxSizing: "border-box" as any,
+          overflow: "hidden" as const,
+          display: "flex" as any,
+          flexDirection: "column" as any,
+          boxShadow: "none" as any,
+          overscrollBehavior: "none" as any,
         }
       : { overflow: "hidden" as const }),
   },

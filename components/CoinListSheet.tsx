@@ -641,7 +641,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontSize: 14,
+    fontSize: Platform.OS === "web" ? 16 : 14,
     fontFamily: "Inter_500Medium",
     color: Colors.dark.text,
     padding: 0,

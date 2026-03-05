@@ -79,7 +79,7 @@ export default function ExchangeSearchScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            autoFocus
+            autoFocus={Platform.OS !== "web"}
             placeholder="코인명 또는 심볼 검색"
             placeholderTextColor={Colors.dark.textTertiary}
             selectionColor={Colors.dark.accent}
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   },
   searchInput: {
     flex: 1,
-    fontSize: 30 / 2,
+    fontSize: Platform.OS === "web" ? 16 : 30 / 2,
     fontFamily: "Inter_500Medium",
     color: Colors.dark.text,
     ...(Platform.OS === "web"
