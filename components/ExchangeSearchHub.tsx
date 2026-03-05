@@ -325,12 +325,12 @@ export default function ExchangeSearchHub() {
     <View style={styles.container}>
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>코인 골라보기</Text>
+          <Text style={styles.sectionTitle}>조건 검색</Text>
           <Pressable
             style={styles.headerActionBtn}
             onPress={() => setFilterSheetVisible(true)}
           >
-            <Text style={styles.headerActionText}>조건 검색</Text>
+            <Text style={styles.headerActionText}>나만의 조건 설정하기</Text>
           </Pressable>
           <Pressable
             style={styles.headerActionBtn}
