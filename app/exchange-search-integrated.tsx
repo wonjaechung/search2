@@ -9,7 +9,6 @@ import Colors from "@/constants/colors";
 import ExchangeView from "@/components/ExchangeView";
 import CoinFilterSheet from "@/components/CoinFilterSheet";
 import { COIN_CATEGORIES, FILTER_CATEGORIES, FilterCategoryId, THEME_ITEMS } from "@/lib/coin-data";
-import { ExchangeCoin, loadBithumbExchangeCoins } from "@/lib/exchange-data";
 import { getScreenWidth } from "@/lib/screen-utils";
 
 type IntegratedTab = "filter" | "saved";
@@ -25,7 +24,6 @@ type SliderItem = {
   subtitle: string;
   filterKey?: FilterCategoryId;
   filterValue?: string;
-  isWhole?: boolean;
 };
 type ActiveFilterChip = {
   key: string;
@@ -59,12 +57,11 @@ export default function ExchangeSearchIntegratedScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<IntegratedTab>("filter");
-  const [selectedSliderId, setSelectedSliderId] = useState<string | null>("all-market");
+  const [selectedSliderId, setSelectedSliderId] = useState<string | null>(null);
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [filterSheetOpenCategory, setFilterSheetOpenCategory] = useState<FilterCategoryId | null>(null);
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Record<FilterCategoryId, string | null>>({ ...EMPTY_FILTERS });
-  const [liveCoins, setLiveCoins] = useState<ExchangeCoin[]>([]);
   const [savedFilters, setSavedFilters] = useState<SavedFilter[]>([]);
   const [saveModalVisible, setSaveModalVisible] = useState(false);
   const [saveNameText, setSaveNameText] = useState("");
@@ -88,12 +85,6 @@ export default function ExchangeSearchIntegratedScreen() {
     });
   }, []);
 
-  useEffect(() => {
-    loadBithumbExchangeCoins().then((coins) => {
-      if (coins.length > 0) setLiveCoins(coins);
-    });
-  }, []);
-
   const sliderItems = useMemo<SliderItem[]>(() => {
     const categories: SliderItem[] = COIN_CATEGORIES.map((item) => ({
       id: `cat-${item.id}`,
@@ -104,12 +95,6 @@ export default function ExchangeSearchIntegratedScreen() {
     }));
 
     return [
-      {
-        id: "all-market",
-        title: "전체",
-        subtitle: "상승/하락 비율",
-        isWhole: true,
-      },
       ...categories,
       ...THEME_ITEMS.map((item) => ({
         id: `theme-${item.id}`,
@@ -120,21 +105,6 @@ export default function ExchangeSearchIntegratedScreen() {
       })),
     ];
   }, []);
-
-  const marketRatio = useMemo(() => {
-    const base = liveCoins.filter((coin) => coin.quoteCurrency === "KRW");
-    if (base.length === 0) return { rise: 50, fall: 50, riseCount: 0, fallCount: 0 };
-    const riseCount = base.filter((coin) => coin.changePercent > 0).length;
-    const fallCount = base.filter((coin) => coin.changePercent < 0).length;
-    const sum = riseCount + fallCount;
-    if (sum === 0) return { rise: 50, fall: 50, riseCount, fallCount };
-    return {
-      rise: (riseCount / sum) * 100,
-      fall: (fallCount / sum) * 100,
-      riseCount,
-      fallCount,
-    };
-  }, [liveCoins]);
 
   const activeFilterChips = useMemo<ActiveFilterChip[]>(() => {
     const chips: ActiveFilterChip[] = [];
@@ -186,12 +156,12 @@ export default function ExchangeSearchIntegratedScreen() {
 
   const resetToDefaultMain = () => {
     setActiveTab("filter");
-    setSelectedSliderId("all-market");
+    setSelectedSliderId(null);
     setFilters({ ...EMPTY_FILTERS });
   };
 
   const clearAllFiltersToWhole = () => {
-    setSelectedSliderId("all-market");
+    setSelectedSliderId(null);
     setFilters({ ...EMPTY_FILTERS });
     setActiveTab("filter");
   };
@@ -199,12 +169,29 @@ export default function ExchangeSearchIntegratedScreen() {
   const clearSingleFilter = (categoryId: FilterCategoryId) => {
     setFilters((prev) => {
       const next = { ...prev, [categoryId]: null };
-      const hasRemain = Object.values(next).some((value) => value !== null);
-      setSelectedSliderId(hasRemain ? null : "all-market");
+      setSelectedSliderId(null);
       setActiveTab("filter");
       return next;
     });
   };
+
+  const resolveSliderSelectionFromFilters = (nextFilters: Record<FilterCategoryId, string | null>) => {
+    const hasAny = Object.values(nextFilters).some((value) => value !== null);
+    if (!hasAny) return null;
+    const matched = sliderItems.find(
+      (item) =>
+        item.filterKey &&
+        item.filterValue &&
+        nextFilters[item.filterKey] === item.filterValue,
+    );
+    return matched?.id ?? null;
+  };
+
+  useEffect(() => {
+    // 필터 상태를 카드 선택 상태의 단일 기준(source of truth)으로 유지
+    if (activeTab === "saved") return;
+    setSelectedSliderId(resolveSliderSelectionFromFilters(filters));
+  }, [filters, activeTab, sliderItems]);
 
   const openFilterBuilder = () => {
     if (activeTab === "saved") {
@@ -221,12 +208,6 @@ export default function ExchangeSearchIntegratedScreen() {
   };
 
   const applySliderFilter = (item: (typeof sliderItems)[number]) => {
-    if (item.isWhole) {
-      setActiveTab("filter");
-      setSelectedSliderId(item.id);
-      setFilters({ ...EMPTY_FILTERS });
-      return;
-    }
     if (!item.filterKey || !item.filterValue) return;
     setActiveTab("filter");
     if (selectedSliderId === item.id) {
@@ -306,25 +287,12 @@ export default function ExchangeSearchIntegratedScreen() {
               onPress={() => applySliderFilter(item)}
             >
               <Text style={styles.cardTitle} numberOfLines={1}>{item.title}</Text>
-              {item.isWhole ? (
-                <View style={styles.ratioWrap}>
-                  <View style={styles.ratioBar}>
-                    <View style={[styles.ratioRise, { width: `${marketRatio.rise}%` }]} />
-                    <View style={[styles.ratioFall, { width: `${marketRatio.fall}%` }]} />
-                  </View>
-                  <View style={styles.ratioLabels}>
-                    <Text style={styles.ratioRiseText}>상승 {marketRatio.riseCount}</Text>
-                    <Text style={styles.ratioFallText}>하락 {marketRatio.fallCount}</Text>
-                  </View>
-                </View>
-              ) : (
-                <Text
-                  style={styles.cardSub}
-                  numberOfLines={1}
-                >
-                  {item.subtitle}
-                </Text>
-              )}
+              <Text
+                style={styles.cardSub}
+                numberOfLines={1}
+              >
+                {item.subtitle}
+              </Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -467,6 +435,8 @@ export default function ExchangeSearchIntegratedScreen() {
           setFilterSheetOpenCategory(null);
           if (filterSheetOpenedFromSaved) {
             clearAllFiltersToWhole();
+          } else {
+            setSelectedSliderId(resolveSliderSelectionFromFilters(filters));
           }
           setFilterSheetOpenedFromSaved(false);
         }}
@@ -474,7 +444,7 @@ export default function ExchangeSearchIntegratedScreen() {
         initialOpenCategory={filterSheetOpenCategory}
         onApply={(nextFilters) => {
           setFilters(nextFilters);
-          setSelectedSliderId(null);
+          setSelectedSliderId(resolveSliderSelectionFromFilters(nextFilters));
           setActiveTab("filter");
           setFilterSheetOpenCategory(null);
           setFilterSheetOpenedFromSaved(false);
@@ -648,40 +618,6 @@ const styles = StyleSheet.create({
     lineHeight: 13,
     fontFamily: "Inter_400Regular",
     color: Colors.dark.textSecondary,
-  },
-  ratioWrap: {
-    marginTop: 6,
-    gap: 5,
-  },
-  ratioBar: {
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: Colors.dark.surfaceElevated,
-    overflow: "hidden",
-    flexDirection: "row",
-  },
-  ratioRise: {
-    backgroundColor: Colors.dark.positive,
-    height: "100%",
-  },
-  ratioFall: {
-    backgroundColor: Colors.dark.negative,
-    height: "100%",
-  },
-  ratioLabels: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  ratioRiseText: {
-    fontSize: 10,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.dark.positive,
-  },
-  ratioFallText: {
-    fontSize: 10,
-    fontFamily: "Inter_600SemiBold",
-    color: Colors.dark.negative,
   },
   segmentWrap: {
     marginHorizontal: 16,
