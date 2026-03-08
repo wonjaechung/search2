@@ -12,7 +12,7 @@ import {
   NativeScrollEvent,
 } from "react-native";
 
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
@@ -28,6 +28,8 @@ import {
 } from "@/lib/coin-data";
 import CoinFilterSheet from "./CoinFilterSheet";
 import WebModalWrapper from "./WebModalWrapper";
+import CoinLogo from "./CoinLogo";
+import { ensureCoinLogos } from "@/lib/coin-logos";
 
 
 type SortKey = "rank" | "change" | "changeWeek" | "changeMonth" | "volume24h" | "marketCap";
@@ -73,10 +75,15 @@ function fmtPct(val: number): string {
 }
 
 function CoinIcon({ coin }: { coin: CoinItem }) {
-  if (coin.iconType === "mci") {
-    return <MaterialCommunityIcons name={coin.iconName as any} size={20} color={coin.iconColor} />;
-  }
-  return <Feather name={coin.iconName as any} size={16} color={coin.iconColor} />;
+  return (
+    <CoinLogo
+      symbol={coin.symbol}
+      size={20}
+      iconType={coin.iconType}
+      iconName={coin.iconName}
+      iconColor={coin.iconColor}
+    />
+  );
 }
 
 export default function CoinListSheet({
@@ -165,6 +172,10 @@ export default function CoinListSheet({
     if (hasFilter) return filterCoins(filters, source);
     return [...source];
   }, [filters, coinsSource]);
+
+  useEffect(() => {
+    ensureCoinLogos(baseCoins.map((coin) => coin.symbol));
+  }, [baseCoins]);
 
   const filteredCoins = useMemo(() => {
     let coins = baseCoins;

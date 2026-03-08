@@ -177,9 +177,9 @@ export const FILTER_CATEGORIES: FilterCategory[] = [
     title: "거래대금",
     subtitle: "거래 금액 규모 기준 필터",
     options: [
-      { id: "high", label: "5조 이상", description: "거래 활발" },
-      { id: "mid", label: "1조 ~ 5조", description: "보통" },
-      { id: "low", label: "1조 미만", description: "거래 적음" },
+      { id: "high", label: "거래 상위 10개", description: "가장 돈이 많이 몰린 종목" },
+      { id: "mid", label: "거래 상위 11~50개", description: "중간 거래량 구간" },
+      { id: "low", label: "거래 51위 이하", description: "상대적으로 거래 적음" },
     ],
   },
   {
@@ -336,6 +336,12 @@ export function filterCoins(
   filters: Record<FilterCategoryId, string | null>,
   sourceCoins: CoinItem[] = ALL_COINS,
 ): CoinItem[] {
+  const volumeRankById = new Map(
+    [...sourceCoins]
+      .sort((a, b) => parseVolume(b.volume24h) - parseVolume(a.volume24h))
+      .map((coin, index) => [coin.id, index + 1]),
+  );
+
   return sourceCoins.filter(coin => {
     if (filters.marketCap) {
       const f = filters.marketCap;
@@ -388,13 +394,12 @@ export function filterCoins(
         const minV = parseFloat(parts[0]);
         const maxV = parseFloat(parts[1]);
         const vol = parseVolume(coin.volume24h);
-        const volInJo = vol / 10000;
-        if (volInJo < minV || volInJo > maxV) return false;
+        if (vol < minV || vol > maxV) return false;
       } else {
-        const vol = parseVolume(coin.volume24h);
-        if (vf === "high" && vol < 50000) return false;
-        if (vf === "mid" && (vol < 10000 || vol >= 50000)) return false;
-        if (vf === "low" && vol >= 10000) return false;
+        const volumeRank = volumeRankById.get(coin.id) ?? Number.MAX_SAFE_INTEGER;
+        if (vf === "high" && volumeRank > 10) return false;
+        if (vf === "mid" && (volumeRank <= 10 || volumeRank > 50)) return false;
+        if (vf === "low" && volumeRank <= 50) return false;
       }
     }
     if (filters.rvol) {
@@ -537,7 +542,7 @@ export const COIN_CATEGORIES: CoinCategory[] = [
     subtitle: "시가총액이 커서 믿을 수 있어요",
     coins: ALL_COINS.sort((a, b) => parseMarketCap(b.marketCap) - parseMarketCap(a.marketCap)).slice(0, 3),
     filterKey: "marketCap",
-    filterValue: "mega",
+    filterValue: "top10",
   },
   {
     id: "smallcap",

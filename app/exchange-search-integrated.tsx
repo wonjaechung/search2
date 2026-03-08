@@ -122,7 +122,7 @@ export default function ExchangeSearchIntegratedScreen() {
         valueLabel = `${periodLabel} ${dir === "up" ? "+" : "-"}${pct}%`;
       } else if (!valueLabel && value.startsWith("customVol:")) {
         const [min, max] = value.replace("customVol:", "").split("-");
-        valueLabel = `${min}~${max}조`;
+        valueLabel = `${min}~${max}억`;
       } else if (!valueLabel && value.startsWith("customRvol:")) {
         const raw = value.replace("customRvol:", "");
         const parts = raw.split(":");

@@ -408,7 +408,7 @@ export default function CoinFilterSheet({
                         value={customCapMax}
                         onChangeText={setCustomCapMax}
                       />
-                      <Text style={styles.customInputUnit}>조</Text>
+                      <Text style={styles.customInputUnit}>억</Text>
                       <Pressable
                         onPress={() => {
                           if (customCapMin && customCapMax) {
@@ -586,7 +586,7 @@ export default function CoinFilterSheet({
                           }
                         }}
                       />
-                      <Text style={styles.customInputUnit}>조</Text>
+                      <Text style={styles.customInputUnit}>억</Text>
                     </View>
                   </View>
                 </>
@@ -1211,7 +1211,7 @@ export default function CoinFilterSheet({
                     }
                     if (!label && val.startsWith("customVol:")) {
                       const parts = val.replace("customVol:", "").split("-");
-                      label = `거래량 ${parts[0]}~${parts[1]}조`;
+                      label = `거래량 ${parts[0]}~${parts[1]}억`;
                     }
                     if (!label && val.startsWith("customRvol:")) {
                       const raw = val.replace("customRvol:", "");
@@ -1292,7 +1292,7 @@ export default function CoinFilterSheet({
                         if (val.startsWith("customRank:")) { const p = val.replace("customRank:", "").split("-"); selectedLabel = `${p[0]}~${p[1]}위`; }
                         else if (val.startsWith("customCap:")) { const p = val.replace("customCap:", "").split("-"); selectedLabel = `${p[0]}~${p[1]}조`; }
                         else if (val.startsWith("custom:") && cat.id === "changeRate") { const p = val.replace("custom:", "").split(":"); selectedLabel = `${p[0] === "1h" ? "1시간" : p[0] === "24h" ? "24시간" : p[0] === "7d" ? "7일" : "30일"} ${p[2] === "up" ? "+" : "-"}${p[1]}%`; }
-                        else if (val.startsWith("customVol:")) { const p = val.replace("customVol:", "").split("-"); selectedLabel = `${p[0]}~${p[1]}조`; }
+                        else if (val.startsWith("customVol:")) { const p = val.replace("customVol:", "").split("-"); selectedLabel = `${p[0]}~${p[1]}억`; }
                         else if (val.startsWith("customRvol:")) {
                           const raw = val.replace("customRvol:", "");
                           const parts = raw.split(":");

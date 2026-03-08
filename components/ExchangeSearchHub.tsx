@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ScrollView, Modal } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 
 import Colors from "@/constants/colors";
 import CoinFilterSheet from "@/components/CoinFilterSheet";
 import CoinListSheet from "@/components/CoinListSheet";
 import WebScrollArrows from "@/components/WebScrollArrows";
-import { ExchangeCoin, loadBithumbExchangeCoins } from "@/lib/exchange-data";
+import CoinLogo from "@/components/CoinLogo";
+import { EXCHANGE_COINS, ExchangeCoin, loadBithumbExchangeCoins } from "@/lib/exchange-data";
+import { ensureCoinLogos } from "@/lib/coin-logos";
 import { getFavoriteMarkets, toggleFavoriteMarket } from "@/lib/favorites";
 import { getScreenWidth } from "@/lib/screen-utils";
 import {
@@ -49,6 +51,17 @@ const EMPTY_FILTERS: Record<FilterCategoryId, string | null> = {
   beta: null,
 };
 
+function buildLiveBySymbol(coins: ExchangeCoin[]): Record<string, ExchangeCoin> {
+  const map: Record<string, ExchangeCoin> = {};
+  coins
+    .filter((coin) => coin.quoteCurrency === "KRW")
+    .forEach((coin) => {
+      const key = coin.symbol.toLowerCase();
+      if (!map[key]) map[key] = coin;
+    });
+  return map;
+}
+
 function hashSymbol(symbol: string): number {
   let h = 0;
   for (let i = 0; i < symbol.length; i += 1) {
@@ -80,8 +93,10 @@ export default function ExchangeSearchHub() {
   const [editingSavedFilterId, setEditingSavedFilterId] = useState<string | null>(null);
   const [savedListVisible, setSavedListVisible] = useState(false);
   const [selectedPresetId, setSelectedPresetId] = useState("cat-consecutive-rise");
-  const [liveBySymbol, setLiveBySymbol] = useState<Record<string, ExchangeCoin>>({});
-  const [liveExchangeCoins, setLiveExchangeCoins] = useState<ExchangeCoin[]>([]);
+  const [liveBySymbol, setLiveBySymbol] = useState<Record<string, ExchangeCoin>>(
+    () => buildLiveBySymbol(EXCHANGE_COINS),
+  );
+  const [liveExchangeCoins, setLiveExchangeCoins] = useState<ExchangeCoin[]>(EXCHANGE_COINS);
   const [favoriteMarkets, setFavoriteMarkets] = useState<string[]>([]);
 
   useEffect(() => {
@@ -99,16 +114,13 @@ export default function ExchangeSearchHub() {
   useEffect(() => {
     loadBithumbExchangeCoins().then((coins) => {
       setLiveExchangeCoins(coins);
-      const map: Record<string, ExchangeCoin> = {};
-      coins
-        .filter((coin) => coin.quoteCurrency === "KRW")
-        .forEach((coin) => {
-          const key = coin.symbol.toLowerCase();
-          if (!map[key]) map[key] = coin;
-        });
-      setLiveBySymbol(map);
+      setLiveBySymbol(buildLiveBySymbol(coins));
     });
   }, []);
+
+  useEffect(() => {
+    ensureCoinLogos(liveExchangeCoins.map((coin) => coin.symbol));
+  }, [liveExchangeCoins]);
 
   useEffect(() => {
     getFavoriteMarkets().then(setFavoriteMarkets);
@@ -315,10 +327,15 @@ export default function ExchangeSearchHub() {
   };
 
   const renderCoinIcon = (coin: CoinItem) => {
-    if (coin.iconType === "mci") {
-      return <MaterialCommunityIcons name={coin.iconName as never} size={20} color={coin.iconColor} />;
-    }
-    return <Feather name={coin.iconName as never} size={16} color={coin.iconColor} />;
+    return (
+      <CoinLogo
+        symbol={coin.symbol}
+        size={20}
+        iconType={coin.iconType}
+        iconName={coin.iconName}
+        iconColor={coin.iconColor}
+      />
+    );
   };
 
   return (
@@ -437,19 +454,13 @@ export default function ExchangeSearchHub() {
                       {index + 1}
                     </Text>
                     <View style={[styles.popularIconWrap, { backgroundColor: `${iconColor}15` }]}>
-                      {iconCoin ? (
-                        iconCoin.iconType === "mci" ? (
-                          <MaterialCommunityIcons
-                            name={iconCoin.iconName as never}
-                            size={16}
-                            color={iconColor}
-                          />
-                        ) : (
-                          <Feather name={iconCoin.iconName as never} size={14} color={iconColor} />
-                        )
-                      ) : (
-                        <Feather name="circle" size={10} color={iconColor} />
-                      )}
+                      <CoinLogo
+                        symbol={coin.symbol}
+                        size={18}
+                        iconType={iconCoin?.iconType}
+                        iconName={iconCoin?.iconName}
+                        iconColor={iconColor}
+                      />
                     </View>
                     <View style={styles.popularNameCol}>
                       <Text style={styles.popularName} numberOfLines={1}>

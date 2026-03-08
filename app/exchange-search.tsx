@@ -2,13 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, TextInput, SectionList, Platform, ScrollView } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 
 import Colors from "@/constants/colors";
 import WebScrollArrows from "@/components/WebScrollArrows";
 import ExchangeSearchHub from "@/components/ExchangeSearchHub";
+import CoinLogo from "@/components/CoinLogo";
 import { EXCHANGE_COINS, ExchangeCoin, loadBithumbExchangeCoins } from "@/lib/exchange-data";
 import { ALL_COINS } from "@/lib/coin-data";
+import { ensureCoinLogos } from "@/lib/coin-logos";
 
 const MOCK_RECENT_SEARCHES = [
   "비트코인",
@@ -37,6 +39,10 @@ export default function ExchangeSearchScreen() {
       if (coins.length > 0) setLiveCoins(coins);
     });
   }, []);
+
+  useEffect(() => {
+    ensureCoinLogos(liveCoins.map((coin) => coin.symbol));
+  }, [liveCoins]);
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof window === "undefined") return;
@@ -176,15 +182,13 @@ export default function ExchangeSearchScreen() {
                 const iconColor = iconMeta?.iconColor ?? Colors.dark.textTertiary;
                 return (
                   <View style={[styles.coinIconWrap, { backgroundColor: `${iconColor}15` }]}>
-                    {iconMeta ? (
-                      iconMeta.iconType === "mci" ? (
-                        <MaterialCommunityIcons name={iconMeta.iconName as never} size={18} color={iconColor} />
-                      ) : (
-                        <Feather name={iconMeta.iconName as never} size={15} color={iconColor} />
-                      )
-                    ) : (
-                      <Feather name="circle" size={12} color={iconColor} />
-                    )}
+                    <CoinLogo
+                      symbol={item.symbol}
+                      size={20}
+                      iconType={iconMeta?.iconType}
+                      iconName={iconMeta?.iconName}
+                      iconColor={iconColor}
+                    />
                   </View>
                 );
               })()}
