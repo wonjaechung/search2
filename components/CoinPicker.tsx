@@ -15,7 +15,7 @@ const CARD_WIDTH = getScreenWidth() * 0.65;
 
 const EMPTY_FILTERS: Record<FilterCategoryId, string | null> = {
   marketCap: null, changeRate: null, volume: null, rvol: null, category: null, staking: null, lending: null, newListing: null,
-  circulatingRatio: null, athDrop: null, atlRise: null, streakUp: null, streakDown: null, rsi: null, beta: null,
+  circulatingRatio: null, athDrop: null, atlRise: null, streakUp: null, streakDown: null, newHigh: null, newLow: null, maCross: null, maArray: null, rsi: null, beta: null, kimchiPremium: null, exchangeInflow: null, smallAccountConcentration: null, unrealizedPnl: null,
 };
 
 function CoinRow({ coin }: { coin: CoinItem }) {

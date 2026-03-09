@@ -47,8 +47,16 @@ const EMPTY_FILTERS: Record<FilterCategoryId, string | null> = {
   atlRise: null,
   streakUp: null,
   streakDown: null,
+  newHigh: null,
+  newLow: null,
+  maCross: null,
+  maArray: null,
   rsi: null,
   beta: null,
+  kimchiPremium: null,
+  exchangeInflow: null,
+  smallAccountConcentration: null,
+  unrealizedPnl: null,
 };
 
 function buildLiveBySymbol(coins: ExchangeCoin[]): Record<string, ExchangeCoin> {

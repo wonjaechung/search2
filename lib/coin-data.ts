@@ -36,11 +36,25 @@ export interface CoinItem {
   downStreak?: number;
   rsi?: number;
   beta?: number;
+  /** 김치 프리미엄(%): 양수 = 국내가 글로벌보다 비쌈, 음수 = 국내가 더 쌈 */
+  kimchiPremium?: number;
+  /** 거래소 입금 압력(추정 지표): 양수면 입금/매도 압력, 음수면 출금/보유 성향 */
+  exchangeInflow?: number;
+  /** 미실현 손익(추정 지표, %): 양수면 이익 구간, 음수면 손실 구간 */
+  unrealizedPnl?: number;
+  /** 보유자 중 수익 구간 비율(%) */
+  profitHolderRatio?: number;
+  /** 소수 계정 거래 집중도(%): 상위 소수 계정의 거래 비중 */
+  smallAccountConcentration?: number;
+  /** 이동평균선(선택): 실제 값이 있으면 배열 판단에 우선 사용 */
+  ma5?: number;
+  ma20?: number;
+  ma60?: number;
 }
 
 export type CoinCategoryType = "layer1" | "layer2" | "defi" | "meme" | "ai" | "gaming" | "rwa" | "infra";
 
-export type FilterCategoryId = "marketCap" | "changeRate" | "volume" | "rvol" | "category" | "staking" | "lending" | "newListing" | "circulatingRatio" | "athDrop" | "atlRise" | "streakUp" | "streakDown" | "rsi" | "beta";
+export type FilterCategoryId = "marketCap" | "changeRate" | "volume" | "rvol" | "category" | "staking" | "lending" | "newListing" | "circulatingRatio" | "athDrop" | "atlRise" | "streakUp" | "streakDown" | "newHigh" | "newLow" | "maCross" | "maArray" | "rsi" | "beta" | "kimchiPremium" | "exchangeInflow" | "smallAccountConcentration" | "unrealizedPnl";
 
 export interface FilterGroup {
   id: string;
@@ -50,9 +64,10 @@ export interface FilterGroup {
 }
 
 export const FILTER_GROUPS: FilterGroup[] = [
-  { id: "basic", title: "기본 정보", icon: "info", categories: ["marketCap", "circulatingRatio", "category", "staking", "lending", "newListing"] },
-  { id: "price", title: "가격 & 거래", icon: "trending-up", categories: ["changeRate", "volume", "rvol", "athDrop", "atlRise", "streakUp", "streakDown"] },
-  { id: "technical", title: "기술적 분석", icon: "activity", categories: ["rsi", "beta"] },
+  { id: "basic", title: "기본", icon: "info", categories: ["category", "marketCap", "circulatingRatio", "kimchiPremium", "staking", "lending"] },
+  { id: "supply", title: "수급", icon: "bar-chart-2", categories: ["volume", "exchangeInflow", "smallAccountConcentration", "unrealizedPnl", "newListing"] },
+  { id: "price", title: "가격", icon: "trending-up", categories: ["changeRate", "streakUp", "streakDown", "newHigh", "newLow", "athDrop", "atlRise"] },
+  { id: "technical", title: "기술", icon: "activity", categories: ["rvol", "maCross", "maArray", "rsi", "beta"] },
 ];
 
 export interface FilterOption {
@@ -183,6 +198,37 @@ export const FILTER_CATEGORIES: FilterCategory[] = [
     ],
   },
   {
+    id: "exchangeInflow",
+    title: "거래소 입금",
+    subtitle: "최근 3일 입금량 급증 기준 필터",
+    options: [
+      { id: "inflow_caution", label: "주의 신호 (입금량 300%+)", description: "최근 3일 입금량이 평소 대비 3배 이상 급증" },
+      { id: "inflow_warning", label: "경고 신호 (입금량 400%+)", description: "최근 3일 입금량이 평소 대비 4배 이상 급증" },
+      { id: "inflow_risk", label: "위험 신호 (입금량 500%+)", description: "최근 3일 입금량이 평소 대비 5배 이상 급증" },
+    ],
+  },
+  {
+    id: "unrealizedPnl",
+    title: "미실현 손익",
+    subtitle: "보유자 수익 비율(%) 기준 구간",
+    options: [
+      { id: "profit80", label: "수익 보유자 80% 이상", description: "대다수 보유자가 수익 구간" },
+      { id: "profit60", label: "수익 보유자 60~80%", description: "수익 보유자가 우세한 구간" },
+      { id: "breakeven", label: "수익 보유자 40~60%", description: "손익분기(중립) 구간" },
+      { id: "loss40", label: "수익 보유자 40% 미만", description: "손실 보유자가 우세한 구간" },
+    ],
+  },
+  {
+    id: "smallAccountConcentration",
+    title: "소수 계정 거래 집중",
+    subtitle: "최근 24시간 소수 계정 거래 비중 기준 필터",
+    options: [
+      { id: "sac_caution", label: "주의 신호 (집중도 50%+)", description: "소수 계정 거래 비중 50% 이상" },
+      { id: "sac_warning", label: "경고 신호 (집중도 75%+)", description: "소수 계정 거래 비중 75% 이상" },
+      { id: "sac_risk", label: "위험 신호 (집중도 90%+)", description: "소수 계정 거래 비중 90% 이상" },
+    ],
+  },
+  {
     id: "rvol",
     title: "상대 거래량 (RVOL)",
     subtitle: "평균 거래량 대비 증가 배수",
@@ -190,6 +236,24 @@ export const FILTER_CATEGORIES: FilterCategory[] = [
       { id: "rvol_200", label: "RVOL 2배 이상", description: "평소 대비 거래량 폭발" },
       { id: "rvol_300", label: "RVOL 3배 이상", description: "평소 대비 초과 거래" },
       { id: "rvol_500", label: "RVOL 5배 이상", description: "이상 급등 거래량" },
+    ],
+  },
+  {
+    id: "maCross",
+    title: "이동평균선 돌파",
+    subtitle: "단기선이 장기선을 돌파하는 추세 전환 신호",
+    options: [
+      { id: "gc", label: "골든크로스", description: "5일선이 20일선을 상향 돌파" },
+      { id: "dc", label: "데드크로스", description: "5일선이 20일선을 하향 돌파" },
+    ],
+  },
+  {
+    id: "maArray",
+    title: "이동평균선 배열",
+    subtitle: "단기·중기·장기 이평선 정렬 상태",
+    options: [
+      { id: "arr_bull", label: "정배열", description: "5일선 > 20일선 > 60일선" },
+      { id: "arr_bear", label: "역배열", description: "5일선 < 20일선 < 60일선" },
     ],
   },
   {
@@ -212,6 +276,26 @@ export const FILTER_CATEGORIES: FilterCategory[] = [
       { id: "3", label: "3일 이상" },
       { id: "4", label: "4일 이상" },
       { id: "5", label: "5일 이상" },
+    ],
+  },
+  {
+    id: "newHigh",
+    title: "신고가",
+    subtitle: "최근 일정 기간 내 고점 돌파 기준",
+    options: [
+      { id: "4w", label: "4주 신고가", description: "최근 4주 기준 고점 돌파" },
+      { id: "12w", label: "12주 신고가", description: "최근 12주 기준 고점 돌파" },
+      { id: "52w", label: "52주 신고가", description: "최근 52주 기준 고점 돌파" },
+    ],
+  },
+  {
+    id: "newLow",
+    title: "신저가",
+    subtitle: "최근 일정 기간 내 저점 이탈 기준",
+    options: [
+      { id: "4w", label: "4주 신저가", description: "최근 4주 기준 저점 이탈" },
+      { id: "12w", label: "12주 신저가", description: "최근 12주 기준 저점 이탈" },
+      { id: "52w", label: "52주 신저가", description: "최근 52주 기준 저점 이탈" },
     ],
   },
   {
@@ -240,11 +324,22 @@ export const FILTER_CATEGORIES: FilterCategory[] = [
   },
   {
     id: "lending",
-    title: "대여 가능",
+    title: "코인 대여",
     subtitle: "코인 대여 가능 여부",
     options: [
       { id: "yes", label: "대여 가능", description: "빌려주고 이자 수익" },
       { id: "no", label: "대여 불가", description: "대여 지원 안 됨" },
+    ],
+  },
+  {
+    id: "kimchiPremium",
+    title: "김치 프리미엄",
+    subtitle: "글로벌 시세차이",
+    options: [
+      { id: "premium", label: "김프 종목 (0% 이상)", description: "국내가 해외보다 비싼 종목" },
+      { id: "discount", label: "역프 종목 (0% 미만)", description: "국내가 해외보다 싼 종목" },
+      { id: "premium_high", label: "김프 과열 (3% 이상)", description: "평균보다 프리미엄이 크게 낀 종목" },
+      { id: "neutral", label: "시세 비슷 (-0.5~0.5%)", description: "국내·해외 시세 차이가 거의 없음" },
     ],
   },
   {
@@ -336,6 +431,145 @@ export function filterCoins(
   filters: Record<FilterCategoryId, string | null>,
   sourceCoins: CoinItem[] = ALL_COINS,
 ): CoinItem[] {
+  const kimchiPremiumAvg = sourceCoins.length > 0
+    ? sourceCoins.reduce((sum, coin) => sum + (coin.kimchiPremium ?? 0), 0) / sourceCoins.length
+    : 0;
+  const estimateExchangeInflow = (coin: CoinItem): number => {
+    if (typeof coin.exchangeInflow === "number") return coin.exchangeInflow;
+    const weekly = coin.changeWeek ?? coin.change ?? 0;
+    const rvol = coin.rVol ?? 1;
+    return (-weekly * 0.6) + ((rvol - 1) * 2);
+  };
+  const estimateUnrealizedPnl = (coin: CoinItem): number => {
+    if (typeof coin.unrealizedPnl === "number") return coin.unrealizedPnl;
+    const monthly = coin.changeMonth ?? coin.change ?? 0;
+    const athBonus = (coin.athDrop?.all ?? 50) < 15 ? 8 : 0;
+    const rsiPenalty = (coin.rsi ?? 50) < 35 ? 8 : 0;
+    return monthly + athBonus - rsiPenalty;
+  };
+  const estimateExchangeInflowSpikePct = (coin: CoinItem): number => {
+    const explicit = coin.exchangeInflow;
+    if (typeof explicit === "number") {
+      // If large enough, treat as already-percent value.
+      if (explicit >= 20) return Math.max(0, explicit);
+      return Math.max(0, explicit * 100);
+    }
+    const score = estimateExchangeInflow(coin);
+    return Math.max(0, score * 100);
+  };
+  const estimateProfitHolderRatio = (coin: CoinItem): number => {
+    if (typeof coin.profitHolderRatio === "number") return Math.max(0, Math.min(100, coin.profitHolderRatio));
+    const pnl = estimateUnrealizedPnl(coin);
+    const ratio = 50 + (pnl * 2); // pnl 1% ~= 수익 보유자 2%p로 근사
+    return Math.max(0, Math.min(100, ratio));
+  };
+  const estimateSmallAccountConcentration = (coin: CoinItem): number => {
+    if (typeof coin.smallAccountConcentration === "number") {
+      return Math.max(0, Math.min(100, coin.smallAccountConcentration));
+    }
+    const rvol = coin.rVol ?? 1;
+    const cap = parseMarketCap(coin.marketCap);
+    const capFactor = cap > 0 ? Math.max(0, Math.min(1, 1 - (Math.log10(cap + 1) / 7))) : 0.4;
+    const base = 35 + ((rvol - 1) * 12) + (capFactor * 20);
+    return Math.max(5, Math.min(98, base));
+  };
+  const parseMaCrossFilter = (value: string): {
+    short: number;
+    long: number;
+    withinDays: number;
+    direction: "up" | "down";
+  } | null => {
+    // New format: macross:5:20:1:up|down
+    if (value.startsWith("macross:")) {
+      const parts = value.replace("macross:", "").split(":");
+      if (parts.length < 4) return null;
+      const short = parseInt(parts[0], 10);
+      const long = parseInt(parts[1], 10);
+      const withinDays = parseInt(parts[2], 10);
+      const direction = parts[3] === "down" ? "down" : "up";
+      if (![short, long, withinDays].every(Number.isFinite)) return null;
+      return { short, long, withinDays, direction };
+    }
+    // Backward compatibility: ma:short:mid:long:within:bull|bear
+    if (value.startsWith("ma:")) {
+      const parts = value.replace("ma:", "").split(":");
+      if (parts.length < 5) return null;
+      const short = parseInt(parts[0], 10);
+      const long = parseInt(parts[2], 10);
+      const withinDays = parseInt(parts[3], 10);
+      const direction = parts[4] === "bear" ? "down" : "up";
+      if (![short, long, withinDays].every(Number.isFinite)) return null;
+      return { short, long, withinDays, direction };
+    }
+    return null;
+  };
+  const estimateMaCrossSignal = (
+    coin: CoinItem,
+    short: number,
+    long: number,
+    withinDays: number,
+  ): "up" | "down" | "none" => {
+    if (coin.ma5 && coin.ma20 && short === 5 && long === 20) {
+      if (coin.ma5 > coin.ma20) return "up";
+      if (coin.ma5 < coin.ma20) return "down";
+      return "none";
+    }
+    const c1d = coin.change ?? 0;
+    const c7d = coin.changeWeek ?? c1d;
+    const up = coin.streak ?? 0;
+    const down = coin.downStreak ?? 0;
+    const recentBias = (c1d * 0.8) + (c7d * 0.5) + (up * 0.9) - (down * 0.9);
+    const gapFactor = Math.max(1, (long - short) / 10);
+    const threshold = withinDays <= 1 ? 2.8 * gapFactor : withinDays <= 3 ? 2.2 * gapFactor : 1.6 * gapFactor;
+    if (recentBias >= threshold) return "up";
+    if (recentBias <= -threshold) return "down";
+    return "none";
+  };
+  const estimateMaArraySignal = (coin: CoinItem): "bull" | "bear" | "mixed" => {
+    if (coin.ma5 && coin.ma20 && coin.ma60) {
+      if (coin.ma5 > coin.ma20 && coin.ma20 > coin.ma60) return "bull";
+      if (coin.ma5 < coin.ma20 && coin.ma20 < coin.ma60) return "bear";
+      return "mixed";
+    }
+    const c1d = coin.change ?? 0;
+    const c7d = coin.changeWeek ?? c1d;
+    const c30d = coin.changeMonth ?? c7d;
+    const up = coin.streak ?? 0;
+    const down = coin.downStreak ?? 0;
+    const score = (c1d * 0.8) + (c7d * 0.9) + (c30d * 0.25) + (up * 1.2) - (down * 1.2);
+    if (score >= 6) return "bull";
+    if (score <= -6) return "bear";
+    return "mixed";
+  };
+  const parseLookbackWeeks = (value: string): number | null => {
+    if (value === "4w") return 4;
+    if (value === "12w") return 12;
+    if (value === "52w") return 52;
+    if (value.startsWith("scan:")) {
+      const parts = value.replace("scan:", "").split(":");
+      const weeks = parseInt(parts[1], 10);
+      return Number.isFinite(weeks) ? weeks : null;
+    }
+    return null;
+  };
+  const isNearRecentHigh = (coin: CoinItem, weeks: number): boolean => {
+    const drop = weeks >= 52
+      ? (coin.athDrop?.y1 ?? coin.athDrop?.all ?? 100)
+      : weeks >= 12
+        ? (coin.athDrop?.m3 ?? coin.athDrop?.all ?? 100)
+        : (coin.athDrop?.m1 ?? coin.athDrop?.all ?? 100);
+    const momentum = (coin.changeWeek ?? coin.change ?? 0) > 0;
+    return drop <= 3 && momentum;
+  };
+  const isNearRecentLow = (coin: CoinItem, weeks: number): boolean => {
+    const rise = weeks >= 52
+      ? (coin.atlRise?.y1 ?? coin.atlRise?.all ?? 999999)
+      : weeks >= 12
+        ? (coin.atlRise?.m3 ?? coin.atlRise?.all ?? 999999)
+        : (coin.atlRise?.m1 ?? coin.atlRise?.all ?? 999999);
+    const weakness = (coin.changeWeek ?? coin.change ?? 0) < 0;
+    return rise <= 30 && weakness;
+  };
   const volumeRankById = new Map(
     [...sourceCoins]
       .sort((a, b) => parseVolume(b.volume24h) - parseVolume(a.volume24h))
@@ -402,6 +636,38 @@ export function filterCoins(
         if (vf === "low" && volumeRank <= 50) return false;
       }
     }
+    if (filters.exchangeInflow) {
+      const spikePct = estimateExchangeInflowSpikePct(coin);
+      const f = filters.exchangeInflow;
+      // Align with warning table thresholds: 300% / 400% / 500%+
+      if (f === "inflow_caution" && spikePct < 300) return false;
+      if (f === "inflow_warning" && spikePct < 400) return false;
+      if (f === "inflow_risk" && spikePct < 500) return false;
+      // Backward compatibility for previously saved values.
+      if (f === "inflow_strong" && spikePct < 300) return false;
+      if (f === "inflow_mid" && (spikePct < 300 || spikePct >= 400)) return false;
+      if (f === "inflow_neutral" && spikePct >= 300) return false;
+      if (f === "outflow" && spikePct >= 50) return false;
+    }
+    if (filters.smallAccountConcentration) {
+      const ratio = estimateSmallAccountConcentration(coin);
+      const f = filters.smallAccountConcentration;
+      if (f === "sac_caution" && ratio < 50) return false;
+      if (f === "sac_warning" && ratio < 75) return false;
+      if (f === "sac_risk" && ratio < 90) return false;
+    }
+    if (filters.unrealizedPnl) {
+      const profitRatio = estimateProfitHolderRatio(coin);
+      const f = filters.unrealizedPnl;
+      if (f === "profit80" && profitRatio < 80) return false;
+      if (f === "profit60" && (profitRatio < 60 || profitRatio >= 80)) return false;
+      if (f === "breakeven" && (profitRatio < 40 || profitRatio > 60)) return false;
+      if (f === "loss40" && profitRatio >= 40) return false;
+      // Backward compatibility for previously saved filters.
+      if (f === "profit_high" && profitRatio < 80) return false;
+      if (f === "profit_mid" && (profitRatio < 60 || profitRatio >= 80)) return false;
+      if (f === "loss_zone" && profitRatio >= 40) return false;
+    }
     if (filters.rvol) {
       const rf = filters.rvol;
       if (rf.startsWith("customRvol:")) {
@@ -414,6 +680,24 @@ export function filterCoins(
         if ((coin.rVol ?? 0) < mult) return false;
       }
     }
+    const maCrossValue = filters.maCross ?? (
+      filters.maArray && (filters.maArray.startsWith("macross:") || filters.maArray.startsWith("ma:"))
+        ? filters.maArray
+        : null
+    );
+    if (maCrossValue) {
+      const parsed = parseMaCrossFilter(maCrossValue);
+      if (!parsed) return false;
+      if (!(parsed.short < parsed.long)) return false;
+      const dir = estimateMaCrossSignal(coin, parsed.short, parsed.long, parsed.withinDays);
+      if (parsed.direction === "up" && dir !== "up") return false;
+      if (parsed.direction === "down" && dir !== "down") return false;
+    }
+    if (filters.maArray && !filters.maArray.startsWith("macross:") && !filters.maArray.startsWith("ma:")) {
+      const arr = estimateMaArraySignal(coin);
+      if (filters.maArray === "arr_bull" && arr !== "bull") return false;
+      if (filters.maArray === "arr_bear" && arr !== "bear") return false;
+    }
     if (filters.category) {
       const tags = coin.tags ?? [];
       if (!tags.includes(filters.category) && coin.category !== filters.category) return false;
@@ -425,6 +709,28 @@ export function filterCoins(
     if (filters.lending) {
       if (filters.lending === "yes" && !coin.lendable) return false;
       if (filters.lending === "no" && coin.lendable) return false;
+    }
+    if (filters.kimchiPremium) {
+      const kp = coin.kimchiPremium ?? 0;
+      const f = filters.kimchiPremium;
+      if (f.startsWith("custom:")) {
+        const parts = f.replace("custom:", "").split(":");
+        const minP = parseFloat(parts[0]);
+        const maxP = parseFloat(parts[1]);
+        if (!Number.isFinite(minP) || !Number.isFinite(maxP) || kp < minP || kp > maxP) return false;
+      } else if (f.startsWith("usdtDiff:")) {
+        const parts = f.replace("usdtDiff:", "").split(":");
+        const pct = parseFloat(parts[0]);
+        const dir = parts[1]; // "high" | "low"
+        const usdtVal = parts.length >= 4 ? parseFloat(parts[3]) : kimchiPremiumAvg;
+        if (dir === "high" && kp < usdtVal + pct) return false;
+        if (dir === "low" && kp > usdtVal - pct) return false;
+      } else {
+        if (f === "premium_high" && kp < 3) return false;
+        if (f === "premium" && (kp < 0 || kp > 3)) return false;
+        if (f === "neutral" && (kp < -0.5 || kp > 0.5)) return false;
+        if (f === "discount" && kp >= 0) return false;
+      }
     }
     if (filters.newListing) {
       const thresholdDays = filters.newListing === "7d" ? 7 : filters.newListing === "14d" ? 14 : 30;
@@ -468,12 +774,22 @@ export function filterCoins(
       }
     }
     if (filters.streakUp) {
-      const minDays = parseInt(filters.streakUp, 10);
+      const raw = filters.streakUp;
+      const minDays = raw.startsWith("streakWin:") ? parseInt(raw.split(":")[2], 10) : parseInt(raw, 10);
       if (isNaN(minDays) || (coin.streak ?? 0) < minDays) return false;
     }
     if (filters.streakDown) {
-      const minDays = parseInt(filters.streakDown, 10);
+      const raw = filters.streakDown;
+      const minDays = raw.startsWith("streakWin:") ? parseInt(raw.split(":")[2], 10) : parseInt(raw, 10);
       if (isNaN(minDays) || (coin.downStreak ?? 0) < minDays) return false;
+    }
+    if (filters.newHigh) {
+      const weeks = parseLookbackWeeks(filters.newHigh);
+      if (!weeks || !isNearRecentHigh(coin, weeks)) return false;
+    }
+    if (filters.newLow) {
+      const weeks = parseLookbackWeeks(filters.newLow);
+      if (!weeks || !isNearRecentLow(coin, weeks)) return false;
     }
     if (filters.rsi) {
       const rsi = coin.rsi ?? 50;

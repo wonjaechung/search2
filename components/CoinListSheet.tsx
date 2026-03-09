@@ -37,7 +37,7 @@ type SortDirection = "asc" | "desc";
 
 const EMPTY_FILTERS: Record<FilterCategoryId, string | null> = {
   marketCap: null, changeRate: null, volume: null, rvol: null, category: null, staking: null, lending: null, newListing: null,
-  circulatingRatio: null, athDrop: null, atlRise: null, streakUp: null, streakDown: null, rsi: null, beta: null,
+  circulatingRatio: null, athDrop: null, atlRise: null, streakUp: null, streakDown: null, newHigh: null, newLow: null, maCross: null, maArray: null, rsi: null, beta: null, kimchiPremium: null, exchangeInflow: null, smallAccountConcentration: null, unrealizedPnl: null,
 };
 
 const ROW_HEIGHT = 56;
@@ -357,6 +357,24 @@ export default function CoinListSheet({
                     } else if (val.startsWith("custom:") && (catId === "beta")) {
                       const p = val.replace("custom:", "").split(":");
                       valueLabel = `${p[0]}~${p[1]}`;
+                    } else if (val.startsWith("custom:") && catId === "kimchiPremium") {
+                      const p = val.replace("custom:", "").split(":");
+                      valueLabel = `김프 ${p[0]}~${p[1]}%`;
+                    } else if (val.startsWith("usdtDiff:") && catId === "kimchiPremium") {
+                      const p = val.replace("usdtDiff:", "").split(":");
+                      valueLabel = `평균 김프 대비 ${p[0]}% ${p[1] === "high" ? "더 높은" : "더 낮은"}`;
+                    } else if (val.startsWith("streakWin:") && (catId === "streakUp" || catId === "streakDown")) {
+                      const p = val.split(":");
+                      valueLabel = `${p[1]}일 내 ${p[2]}일 연속 ${catId === "streakUp" ? "상승" : "하락"}`;
+                    } else if (val.startsWith("scan:") && (catId === "newHigh" || catId === "newLow")) {
+                      const p = val.split(":");
+                      valueLabel = `${p[1]}일 내 ${p[2]}주 ${catId === "newHigh" ? "신고가" : "신저가"}`;
+                    } else if (val.startsWith("macross:") && catId === "maCross") {
+                      const p = val.replace("macross:", "").split(":");
+                      valueLabel = `${p[0]}일선/${p[1]}일선 · ${p[2]}일 · ${p[3] === "up" ? "상향돌파" : "하향돌파"}`;
+                    } else if (val.startsWith("ma:") && catId === "maCross") {
+                      const p = val.replace("ma:", "").split(":");
+                      valueLabel = `${p[0]}일선/${p[2]}일선 · ${p[3]}일 · ${p[4] === "bull" ? "상향돌파" : "하향돌파"}`;
                     } else if (val.startsWith("customVol:")) {
                       const parts = val.replace("customVol:", "").split("-");
                       valueLabel = `${parts[0]}~${parts[1]}억`;

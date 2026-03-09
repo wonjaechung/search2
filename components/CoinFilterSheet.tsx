@@ -123,6 +123,15 @@ export default function CoinFilterSheet({
   const [customBetaMax, setCustomBetaMax] = useState("");
   const [rsiPeriod, setRsiPeriod] = useState("14");
   const [betaDir, setBetaDir] = useState<"same" | "opp">("same");
+  const [maShort, setMaShort] = useState("5");
+  const [maLong, setMaLong] = useState("20");
+  const [maWithinDays, setMaWithinDays] = useState("1");
+  const [maDirection, setMaDirection] = useState<"up" | "down">("up");
+  const [maAdvancedOpen, setMaAdvancedOpen] = useState(false);
+  const [streakUpWindow, setStreakUpWindow] = useState("7");
+  const [streakDownWindow, setStreakDownWindow] = useState("7");
+  const [newHighWindow, setNewHighWindow] = useState("3");
+  const [newLowWindow, setNewLowWindow] = useState("3");
 
   const activeFilterCount = Object.values(localFilters).filter(Boolean).length;
   const resultCount = filterCoins(localFilters, coinsSource).length;
@@ -162,8 +171,16 @@ export default function CoinFilterSheet({
       atlRise: null,
       streakUp: null,
       streakDown: null,
+      newHigh: null,
+      newLow: null,
+      maCross: null,
+      maArray: null,
       rsi: null,
       beta: null,
+      kimchiPremium: null,
+      exchangeInflow: null,
+      smallAccountConcentration: null,
+      unrealizedPnl: null,
     });
   }, []);
 
@@ -198,6 +215,11 @@ export default function CoinFilterSheet({
       setCustomRsiMax("");
       setCustomBetaMin("");
       setCustomBetaMax("");
+      setMaShort("5");
+      setMaLong("20");
+      setMaWithinDays("1");
+      setMaDirection("up");
+      setMaAdvancedOpen(false);
       const mc = filters.marketCap;
       if (mc && mc.startsWith("customRank:")) {
         const parts = mc.replace("customRank:", "").split("-");
@@ -271,6 +293,52 @@ export default function CoinFilterSheet({
       } else {
         setBetaDir("same");
       }
+      const maF = filters.maCross ?? (filters.maArray?.startsWith("macross:") || filters.maArray?.startsWith("ma:") ? filters.maArray : null);
+      if (maF?.startsWith("macross:")) {
+        const p = maF.replace("macross:", "").split(":");
+        if (p.length >= 4) {
+          setMaShort(p[0] ?? "5");
+          setMaLong(p[1] ?? "20");
+          setMaWithinDays(p[2] ?? "1");
+          setMaDirection((p[3] as "up" | "down") === "down" ? "down" : "up");
+        }
+      } else if (maF?.startsWith("ma:")) {
+        const p = maF.replace("ma:", "").split(":");
+        if (p.length >= 5) {
+          setMaShort(p[0] ?? "5");
+          setMaLong(p[2] ?? "20");
+          setMaWithinDays(p[3] ?? "1");
+          setMaDirection((p[4] as "bull" | "bear") === "bear" ? "down" : "up");
+        }
+      }
+      const su = filters.streakUp;
+      if (su?.startsWith("streakWin:")) {
+        const parts = su.split(":");
+        setStreakUpWindow(parts[1] ?? "7");
+      } else {
+        setStreakUpWindow("7");
+      }
+      const sd = filters.streakDown;
+      if (sd?.startsWith("streakWin:")) {
+        const parts = sd.split(":");
+        setStreakDownWindow(parts[1] ?? "7");
+      } else {
+        setStreakDownWindow("7");
+      }
+      const nh = filters.newHigh;
+      if (nh?.startsWith("scan:")) {
+        const parts = nh.split(":");
+        setNewHighWindow(parts[1] ?? "3");
+      } else {
+        setNewHighWindow("3");
+      }
+      const nl = filters.newLow;
+      if (nl?.startsWith("scan:")) {
+        const parts = nl.split(":");
+        setNewLowWindow(parts[1] ?? "3");
+      } else {
+        setNewLowWindow("3");
+      }
     }
   }, [visible, initialOpenCategory]);
 
@@ -338,6 +406,10 @@ export default function CoinFilterSheet({
                   <View style={styles.customInputSection}>
                     <Text style={styles.customInputLabel}>직접 설정</Text>
                     <View style={styles.customInputRow}>
+                      {(() => {
+                        const isCustomRankActive = localFilters.marketCap?.startsWith("customRank:") ?? false;
+                        return (
+                          <>
                       <TextInput
                         style={[styles.customInput, localFilters.marketCap?.startsWith("customRank:") && styles.customInputActive]}
                         placeholder="최소"
@@ -365,12 +437,16 @@ export default function CoinFilterSheet({
                         }}
                         style={({ pressed }) => [
                           styles.customApplyBtn,
+                          isCustomRankActive && styles.customApplyBtnActive,
                           (!customRankMin || !customRankMax) && styles.customApplyBtnDisabled,
                           pressed && { opacity: 0.7 },
                         ]}
                       >
-                        <Feather name="check" size={16} color={customRankMin && customRankMax ? Colors.dark.accent : Colors.dark.textTertiary} />
+                        <Feather name="check" size={16} color={isCustomRankActive ? Colors.dark.accent : Colors.dark.textTertiary} />
                       </Pressable>
+                          </>
+                        );
+                      })()}
                     </View>
                   </View>
 
@@ -391,6 +467,10 @@ export default function CoinFilterSheet({
                   <View style={styles.customInputSection}>
                     <Text style={styles.customInputLabel}>직접 설정</Text>
                     <View style={styles.customInputRow}>
+                      {(() => {
+                        const isCustomCapActive = localFilters.marketCap?.startsWith("customCap:") ?? false;
+                        return (
+                          <>
                       <TextInput
                         style={[styles.customInput, localFilters.marketCap?.startsWith("customCap:") && styles.customInputActive]}
                         placeholder="최소"
@@ -418,12 +498,16 @@ export default function CoinFilterSheet({
                         }}
                         style={({ pressed }) => [
                           styles.customApplyBtn,
+                          isCustomCapActive && styles.customApplyBtnActive,
                           (!customCapMin || !customCapMax) && styles.customApplyBtnDisabled,
                           pressed && { opacity: 0.7 },
                         ]}
                       >
-                        <Feather name="check" size={16} color={customCapMin && customCapMax ? Colors.dark.accent : Colors.dark.textTertiary} />
+                        <Feather name="check" size={16} color={isCustomCapActive ? Colors.dark.accent : Colors.dark.textTertiary} />
                       </Pressable>
+                          </>
+                        );
+                      })()}
                     </View>
                   </View>
                 </>
@@ -802,16 +886,320 @@ export default function CoinFilterSheet({
                 })()
               ) : detailCategory === "streakUp" || detailCategory === "streakDown" ? (
                 <>
-                  <Text style={styles.streakSubtitle}>어제 종가 기준</Text>
-                  <View style={styles.optionsList}>
-                    {currentDetail.options.map(option => (
-                      <FilterOptionRow
-                        key={option.id}
-                        option={option}
-                        isSelected={localFilters[detailCategory] === option.id}
-                        onPress={() => toggleOption(detailCategory, option.id)}
-                      />
-                    ))}
+                  {(() => {
+                    const isUp = detailCategory === "streakUp";
+                    const selectedWindow = isUp ? streakUpWindow : streakDownWindow;
+                    const selectedRaw = localFilters[detailCategory];
+                    const selectedDays = selectedRaw?.startsWith("streakWin:")
+                      ? selectedRaw.split(":")[2]
+                      : selectedRaw;
+                    return (
+                      <>
+                        <View style={styles.taSectionHeader}>
+                          <Text style={styles.taSectionTitle}>관찰 기간</Text>
+                          <Text style={styles.taSectionDesc}>최근 얼마나 짧은 기간의 연속 흐름을 볼까요?</Text>
+                        </View>
+                        <View style={styles.taPeriodRow}>
+                          {([
+                            { id: "3", label: "3일", desc: "매우 단기" },
+                            { id: "7", label: "7일", desc: "기본값" },
+                            { id: "14", label: "14일", desc: "안정적" },
+                          ] as const).map(p => {
+                            const active = selectedWindow === p.id;
+                            return (
+                              <Pressable
+                                key={p.id}
+                                onPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                  if (isUp) setStreakUpWindow(p.id); else setStreakDownWindow(p.id);
+                                  if (selectedDays) {
+                                    setLocalFilters(prev => ({ ...prev, [detailCategory]: `streakWin:${p.id}:${selectedDays}` }));
+                                  }
+                                }}
+                                style={[styles.taPeriodChip, active && styles.taPeriodChipActive]}
+                              >
+                                <Text style={[styles.taPeriodLabel, active && styles.taPeriodLabelActive]}>{p.label}</Text>
+                                <Text style={[styles.taPeriodDesc, active && styles.taPeriodDescActive]}>{p.desc}</Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+
+                        <View style={styles.taSectionHeader}>
+                          <Text style={styles.taSectionTitle}>{isUp ? "연속 상승 일수" : "연속 하락 일수"}</Text>
+                        </View>
+                        <View style={styles.taChipGrid}>
+                          {currentDetail.options.map(option => {
+                            const sel = selectedDays === option.id;
+                            const color = isUp ? "#4CAF50" : "#F44336";
+                            return (
+                              <Pressable
+                                key={option.id}
+                                onPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                  const next = `streakWin:${selectedWindow}:${option.id}`;
+                                  setLocalFilters(prev => ({ ...prev, [detailCategory]: prev[detailCategory] === next ? null : next }));
+                                }}
+                                style={[styles.taChip, sel && { borderColor: color, backgroundColor: `${color}18` }]}
+                              >
+                                <View style={[styles.taChipDot, { backgroundColor: color }]} />
+                                <View style={{ flex: 1 }}>
+                                  <Text style={[styles.taChipLabel, sel && { color: Colors.dark.text }]}>{option.label}</Text>
+                                  <Text style={[styles.taChipDesc, sel && { color: Colors.dark.textSecondary }]}>
+                                    {selectedWindow}일 관찰 구간에서 {option.id}일 이상 {isUp ? "상승" : "하락"}
+                                  </Text>
+                                </View>
+                                {sel && <Feather name="check" size={16} color={color} />}
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </>
+                    );
+                  })()}
+                </>
+              ) : detailCategory === "newHigh" || detailCategory === "newLow" ? (
+                <>
+                  {(() => {
+                    const isHigh = detailCategory === "newHigh";
+                    const windowVal = isHigh ? newHighWindow : newLowWindow;
+                    const selectedRaw = localFilters[detailCategory];
+                    const selectedWeeks = selectedRaw?.startsWith("scan:")
+                      ? selectedRaw.split(":")[2]
+                      : selectedRaw?.replace("w", "");
+                    const applyLevel = (weeks: string) => {
+                      setLocalFilters(prev => ({ ...prev, [detailCategory]: `scan:${windowVal}:${weeks}` }));
+                    };
+                    return (
+                      <>
+                        <View style={styles.taSectionHeader}>
+                          <Text style={styles.taSectionTitle}>탐지 기간</Text>
+                          <Text style={styles.taSectionDesc}>최근 며칠 내 신호가 나온 종목을 볼까요?</Text>
+                        </View>
+                        <View style={styles.taPeriodRow}>
+                          {([
+                            { id: "1", label: "1일", desc: "당일 신호" },
+                            { id: "3", label: "3일", desc: "기본값" },
+                            { id: "7", label: "7일", desc: "주간 관찰" },
+                          ] as const).map(p => {
+                            const active = windowVal === p.id;
+                            return (
+                              <Pressable
+                                key={p.id}
+                                onPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                  if (isHigh) setNewHighWindow(p.id); else setNewLowWindow(p.id);
+                                  if (selectedWeeks) applyLevel(selectedWeeks);
+                                }}
+                                style={[styles.taPeriodChip, active && styles.taPeriodChipActive]}
+                              >
+                                <Text style={[styles.taPeriodLabel, active && styles.taPeriodLabelActive]}>{p.label}</Text>
+                                <Text style={[styles.taPeriodDesc, active && styles.taPeriodDescActive]}>{p.desc}</Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+
+                        <View style={styles.taSectionHeader}>
+                          <Text style={styles.taSectionTitle}>{isHigh ? "신고가 기준" : "신저가 기준"}</Text>
+                        </View>
+                        <View style={styles.taChipGrid}>
+                          {[4, 12, 52].map((weeks) => {
+                            const sel = selectedWeeks === String(weeks);
+                            const color = isHigh ? "#4CAF50" : "#F44336";
+                            return (
+                              <Pressable
+                                key={weeks}
+                                onPress={() => {
+                                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                  applyLevel(String(weeks));
+                                }}
+                                style={[styles.taChip, sel && { borderColor: color, backgroundColor: `${color}18` }]}
+                              >
+                                <View style={[styles.taChipDot, { backgroundColor: color }]} />
+                                <View style={{ flex: 1 }}>
+                                  <Text style={[styles.taChipLabel, sel && { color: Colors.dark.text }]}>{weeks}주 {isHigh ? "신고가" : "신저가"}</Text>
+                                  <Text style={[styles.taChipDesc, sel && { color: Colors.dark.textSecondary }]}>
+                                    최근 {windowVal}일 내 {weeks}주 기준 {isHigh ? "고점 돌파" : "저점 이탈"}
+                                  </Text>
+                                </View>
+                                {sel && <Feather name="check" size={16} color={color} />}
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </>
+                    );
+                  })()}
+                </>
+              ) : detailCategory === "maCross" ? (
+                <>
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      단기 이동평균선이 장기 이동평균선을 <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>위로 돌파</Text>하면 골든크로스, 아래로 내려가면 데드크로스로 해석해요.
+                    </Text>
+                  </View>
+
+                  <View style={styles.taSectionHeader}>
+                    <Text style={styles.taSectionTitle}>빠른 선택</Text>
+                    <Text style={styles.taSectionDesc}>가장 자주 쓰는 조건을 바로 적용</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setMaShort("5");
+                        setMaLong("20");
+                        setMaWithinDays("1");
+                        setMaDirection("up");
+                        setLocalFilters(prev => ({ ...prev, maCross: "macross:5:20:1:up" }));
+                      }}
+                      style={[styles.betaDirBtn, localFilters.maCross === "macross:5:20:1:up" && styles.betaDirBtnActive]}
+                    >
+                      <Text style={[styles.betaDirText, localFilters.maCross === "macross:5:20:1:up" && styles.betaDirTextActive]}>골든크로스</Text>
+                      <Text style={styles.betaDirDesc}>5일선이 20일선을 상향 돌파</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setMaShort("5");
+                        setMaLong("20");
+                        setMaWithinDays("1");
+                        setMaDirection("down");
+                        setLocalFilters(prev => ({ ...prev, maCross: "macross:5:20:1:down" }));
+                      }}
+                      style={[styles.betaDirBtn, localFilters.maCross === "macross:5:20:1:down" && styles.betaDirBtnActiveOpp]}
+                    >
+                      <Text style={[styles.betaDirText, localFilters.maCross === "macross:5:20:1:down" && styles.betaDirTextActiveOpp]}>데드크로스</Text>
+                      <Text style={styles.betaDirDesc}>5일선이 20일선을 하향 돌파</Text>
+                    </Pressable>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 10 }]}>
+                    <Text style={styles.taSectionTitle}>직접 설정 (상세 모드)</Text>
+                    <Text style={styles.taSectionDesc}>필요할 때만 펼쳐서 미세 조정</Text>
+                  </View>
+                  <Pressable
+                    onPress={() => setMaAdvancedOpen(prev => !prev)}
+                    style={({ pressed }) => [styles.filterCard, pressed && { opacity: 0.85 }]}
+                  >
+                    <View style={styles.filterCardTop}>
+                      <Text style={styles.filterCardTitle}>{maAdvancedOpen ? "상세 모드 접기" : "상세 모드 펼치기"}</Text>
+                      <Feather name={maAdvancedOpen ? "chevron-up" : "chevron-down"} size={16} color={Colors.dark.textTertiary} />
+                    </View>
+                    <Text style={styles.filterCardDesc}>사용자 전략: 단기선/장기선/기간/방향 직접 설정</Text>
+                  </Pressable>
+
+                  {maAdvancedOpen && (
+                    <>
+                      <View style={styles.taCustomRow}>
+                        <TextInput
+                          style={[styles.taCustomInput, styles.maInput]}
+                          placeholder="단기선"
+                          placeholderTextColor={Colors.dark.textTertiary}
+                          keyboardType="number-pad"
+                          value={maShort}
+                          onChangeText={setMaShort}
+                        />
+                        <Text style={styles.customInputUnit}>일선이</Text>
+                        <TextInput
+                          style={[styles.taCustomInput, styles.maInput]}
+                          placeholder="장기선"
+                          placeholderTextColor={Colors.dark.textTertiary}
+                          keyboardType="number-pad"
+                          value={maLong}
+                          onChangeText={setMaLong}
+                        />
+                        <Text style={styles.customInputUnit}>일선을</Text>
+                      </View>
+                      <View style={styles.taCustomRow}>
+                        <View style={styles.taPeriodRow}>
+                          {(["1", "2", "3", "4", "5"] as const).map(d => (
+                            <Pressable
+                              key={d}
+                              onPress={() => {
+                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                                setMaWithinDays(d);
+                              }}
+                              style={[styles.periodChip, maWithinDays === d && styles.periodChipActive]}
+                            >
+                              <Text style={[styles.periodChipText, maWithinDays === d && styles.periodChipTextActive]}>최근 {d}일</Text>
+                            </Pressable>
+                          ))}
+                        </View>
+                      </View>
+                      <View style={styles.betaDirRow}>
+                        <Pressable
+                          onPress={() => setMaDirection("up")}
+                          style={[styles.betaDirBtn, maDirection === "up" && styles.betaDirBtnActive]}
+                        >
+                          <Text style={[styles.betaDirText, maDirection === "up" && styles.betaDirTextActive]}>상향돌파</Text>
+                        </Pressable>
+                        <Pressable
+                          onPress={() => setMaDirection("down")}
+                          style={[styles.betaDirBtn, maDirection === "down" && styles.betaDirBtnActiveOpp]}
+                        >
+                          <Text style={[styles.betaDirText, maDirection === "down" && styles.betaDirTextActiveOpp]}>하향돌파</Text>
+                        </Pressable>
+                      </View>
+                      <View style={styles.taCustomRow}>
+                        <Pressable
+                          onPress={() => {
+                            const s = parseInt(maShort, 10);
+                            const l = parseInt(maLong, 10);
+                            const w = parseInt(maWithinDays, 10);
+                            if ([s, l, w].every(Number.isFinite) && s < l) {
+                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                              setLocalFilters(prev => ({ ...prev, maCross: `macross:${s}:${l}:${w}:${maDirection}` }));
+                            }
+                          }}
+                          style={[styles.taCustomApply, { marginLeft: "auto" }]}
+                        >
+                          <Text style={styles.taCustomApplyText}>상세 조건 적용</Text>
+                        </Pressable>
+                      </View>
+                    </>
+                  )}
+                  {localFilters.maCross?.startsWith("macross:") && (
+                    <View style={styles.crSummary}>
+                      <Feather name="check-circle" size={13} color={Colors.dark.accent} />
+                      <Text style={styles.crSummaryText}>
+                        {(() => {
+                          const p = localFilters.maCross!.replace("macross:", "").split(":");
+                          return `${p[0]}일선이 ${p[1]}일선을 ${p[2]}일 내 ${p[3] === "up" ? "상향돌파" : "하향돌파"}한 종목`;
+                        })()}
+                      </Text>
+                    </View>
+                  )}
+                </>
+              ) : detailCategory === "maArray" ? (
+                <>
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      단기·중기·장기 이동평균선이 순서대로 정렬된 상태를 확인해요.
+                    </Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        toggleOption("maArray", "arr_bull");
+                      }}
+                      style={[styles.betaDirBtn, localFilters.maArray === "arr_bull" && styles.betaDirBtnActive]}
+                    >
+                      <Text style={[styles.betaDirText, localFilters.maArray === "arr_bull" && styles.betaDirTextActive]}>정배열</Text>
+                      <Text style={styles.betaDirDesc}>5일선 &gt; 20일선 &gt; 60일선</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        toggleOption("maArray", "arr_bear");
+                      }}
+                      style={[styles.betaDirBtn, localFilters.maArray === "arr_bear" && styles.betaDirBtnActiveOpp]}
+                    >
+                      <Text style={[styles.betaDirText, localFilters.maArray === "arr_bear" && styles.betaDirTextActiveOpp]}>역배열</Text>
+                      <Text style={styles.betaDirDesc}>5일선 &lt; 20일선 &lt; 60일선</Text>
+                    </Pressable>
                   </View>
                 </>
               ) : detailCategory === "rsi" ? (
@@ -1123,6 +1511,91 @@ export default function CoinFilterSheet({
                     </View>
                   )}
                 </>
+              ) : detailCategory === "kimchiPremium" ? (
+                <>
+                  <View style={styles.taGaugeContainer}>
+                    <View style={styles.taGaugeBar}>
+                      <View style={[styles.taGaugeSegment, { flex: 1, backgroundColor: "rgba(76,175,80,0.4)", borderTopLeftRadius: 6, borderBottomLeftRadius: 6 }]} />
+                      <View style={[styles.taGaugeSegment, { flex: 1, backgroundColor: "rgba(76,175,80,0.15)" }]} />
+                      <View style={[styles.taGaugeSegment, { flex: 1, backgroundColor: "rgba(255,255,255,0.06)" }]} />
+                      <View style={[styles.taGaugeSegment, { flex: 1, backgroundColor: "rgba(244,67,54,0.15)" }]} />
+                      <View style={[styles.taGaugeSegment, { flex: 1, backgroundColor: "rgba(244,67,54,0.35)", borderTopRightRadius: 6, borderBottomRightRadius: 6 }]} />
+                    </View>
+                    <View style={styles.taGaugeLabels}>
+                      <Text style={[styles.taGaugeLabel, { color: "#4CAF50" }]}>-10</Text>
+                      <Text style={[styles.taGaugeLabel, { color: "#4CAF50" }]}>-3</Text>
+                      <Text style={styles.taGaugeLabel}>0</Text>
+                      <Text style={[styles.taGaugeLabel, { color: "#F44336" }]}>3</Text>
+                      <Text style={[styles.taGaugeLabel, { color: "#F44336" }]}>+10</Text>
+                    </View>
+                    <View style={styles.taGaugeLabelRow}>
+                      <Text style={[styles.taGaugeZone, { color: "#4CAF50" }]}>국내 할인</Text>
+                      <Text style={styles.taGaugeZone}>시세 비슷</Text>
+                      <Text style={[styles.taGaugeZone, { color: "#F44336" }]}>국내 프리미엄</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      국내 거래소와 <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>해외 거래소 시세 차이</Text>를 %로 보여줘요
+                    </Text>
+                    <View style={styles.taInfoRow}>
+                      <View style={[styles.taInfoBadge, { backgroundColor: "rgba(76,175,80,0.12)" }]}>
+                        <Feather name="arrow-down-circle" size={13} color="#4CAF50" />
+                        <Text style={[styles.taInfoBadgeText, { color: "#4CAF50" }]}>음수 → 국내가 더 쌈</Text>
+                      </View>
+                      <View style={[styles.taInfoBadge, { backgroundColor: "rgba(244,67,54,0.12)" }]}>
+                        <Feather name="arrow-up-circle" size={13} color="#F44336" />
+                        <Text style={[styles.taInfoBadgeText, { color: "#F44336" }]}>양수 → 국내가 더 비쌈</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.taSectionHeader}>
+                    <Text style={styles.taSectionTitle}>평균 김프(USDT) 대비</Text>
+                    <Text style={styles.taSectionDesc}>평균보다 더 끼었는지 / 덜 끼었는지 빠르게 보기</Text>
+                  </View>
+                  <View style={styles.taChipGrid}>
+                    {([
+                      { id: "usdtDiff:2:high", label: "평균보다 +2% 이상", description: "프리미엄이 평균보다 높음", color: "#F44336" },
+                      { id: "usdtDiff:5:high", label: "평균보다 +5% 이상", description: "과열 구간", color: "#E53935" },
+                      { id: "usdtDiff:2:low", label: "평균보다 -2% 이하", description: "프리미엄이 평균보다 낮음", color: "#4CAF50" },
+                      { id: "usdtDiff:5:low", label: "평균보다 -5% 이하", description: "저평가 구간", color: "#2E7D32" },
+                    ] as const).map(item => {
+                      const sel = localFilters.kimchiPremium === item.id;
+                      return (
+                        <Pressable
+                          key={item.id}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setLocalFilters(prev => ({ ...prev, kimchiPremium: item.id }));
+                          }}
+                          style={[styles.taChip, sel && { borderColor: item.color, backgroundColor: `${item.color}18` }]}
+                        >
+                          <View style={[styles.taChipDot, { backgroundColor: item.color }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.taChipLabel, sel && { color: Colors.dark.text }]}>{item.label}</Text>
+                            <Text style={[styles.taChipDesc, sel && { color: Colors.dark.textSecondary }]}>{item.description}</Text>
+                          </View>
+                          {sel && <Feather name="check" size={16} color={item.color} />}
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  {localFilters.kimchiPremium && (
+                    <View style={styles.crSummary}>
+                      <Feather name="check-circle" size={13} color={Colors.dark.accent} />
+                      <Text style={styles.crSummaryText}>
+                        {localFilters.kimchiPremium.startsWith("usdtDiff:")
+                          ? (() => {
+                              const p = localFilters.kimchiPremium.replace("usdtDiff:", "").split(":");
+                              return `평균 김프(USDT) 대비 ${p[0]}% ${p[1] === "high" ? "더 높은" : "더 낮은"} 종목`;
+                            })()
+                          : currentDetail.options.find(o => o.id === localFilters.kimchiPremium)?.label ?? ""}
+                      </Text>
+                    </View>
+                  )}
+                </>
               ) : (
                 <View style={styles.optionsList}>
                   {currentDetail.options.map(option => (
@@ -1229,6 +1702,34 @@ export default function CoinFilterSheet({
                       const parts = val.replace("custom:", "").split(":");
                       label = `베타 ${parts[0]}~${parts[1]}`;
                     }
+                    if (!label && val.startsWith("macross:") && cat.id === "maCross") {
+                      const p = val.replace("macross:", "").split(":");
+                      label = `${p[0]}일선/${p[1]}일선 · ${p[2]}일 · ${p[3] === "up" ? "상향돌파" : "하향돌파"}`;
+                    }
+                    if (!label && val.startsWith("ma:") && cat.id === "maCross") {
+                      const p = val.replace("ma:", "").split(":");
+                      label = `${p[0]}일선/${p[2]}일선 · ${p[3]}일 · ${p[4] === "bull" ? "상향돌파" : "하향돌파"}`;
+                    }
+                    if (!label && val.startsWith("streakWin:") && (cat.id === "streakUp" || cat.id === "streakDown")) {
+                      const parts = val.split(":");
+                      const win = parts[1];
+                      const days = parts[2];
+                      label = `${win}일 내 ${days}일 연속 ${cat.id === "streakUp" ? "상승" : "하락"}`;
+                    }
+                    if (!label && val.startsWith("scan:") && (cat.id === "newHigh" || cat.id === "newLow")) {
+                      const parts = val.split(":");
+                      const win = parts[1];
+                      const weeks = parts[2];
+                      label = `${win}일 내 ${weeks}주 ${cat.id === "newHigh" ? "신고가" : "신저가"}`;
+                    }
+                    if (!label && val.startsWith("custom:") && cat.id === "kimchiPremium") {
+                      const p = val.replace("custom:", "").split(":");
+                      label = `김프 ${p[0]}~${p[1]}%`;
+                    }
+                    if (!label && val.startsWith("usdtDiff:") && cat.id === "kimchiPremium") {
+                      const p = val.replace("usdtDiff:", "").split(":");
+                      label = `평균 김프 대비 ${p[0]}% ${p[1] === "high" ? "더 높은" : "더 낮은"}`;
+                    }
                     return (
                       <Pressable
                         key={cat.id}
@@ -1303,8 +1804,14 @@ export default function CoinFilterSheet({
                         }
                         else if (val.startsWith("custom:") && cat.id === "rsi") { const p = val.replace("custom:", "").split(":"); selectedLabel = `RSI ${p[0]}~${p[1]}`; }
                         else if (val.startsWith("custom:") && cat.id === "beta") { const p = val.replace("custom:", "").split(":"); selectedLabel = `${p[0]}~${p[1]}`; }
+                        else if (val.startsWith("macross:") && cat.id === "maCross") { const p = val.replace("macross:", "").split(":"); selectedLabel = `${p[0]}일선/${p[1]}일선 · ${p[2]}일 · ${p[3] === "up" ? "상향돌파" : "하향돌파"}`; }
+                        else if (val.startsWith("ma:") && cat.id === "maCross") { const p = val.replace("ma:", "").split(":"); selectedLabel = `${p[0]}일선/${p[2]}일선 · ${p[3]}일 · ${p[4] === "bull" ? "상향돌파" : "하향돌파"}`; }
                         else if (val.startsWith("custom:") && cat.id === "athDrop") { const p = val.replace("custom:", "").split(":"); selectedLabel = `고점 -${p[1]}%`; }
                         else if (val.startsWith("custom:") && cat.id === "atlRise") { const p = val.replace("custom:", "").split(":"); selectedLabel = `저점 +${p[1]}%`; }
+                        else if (val.startsWith("streakWin:") && (cat.id === "streakUp" || cat.id === "streakDown")) { const p = val.split(":"); selectedLabel = `${p[1]}일 내 ${p[2]}일 연속 ${cat.id === "streakUp" ? "상승" : "하락"}`; }
+                        else if (val.startsWith("scan:") && (cat.id === "newHigh" || cat.id === "newLow")) { const p = val.split(":"); selectedLabel = `${p[1]}일 내 ${p[2]}주 ${cat.id === "newHigh" ? "신고가" : "신저가"}`; }
+                        else if (val.startsWith("custom:") && cat.id === "kimchiPremium") { const p = val.replace("custom:", "").split(":"); selectedLabel = `김프 ${p[0]}~${p[1]}%`; }
+                        else if (val.startsWith("usdtDiff:") && cat.id === "kimchiPremium") { const p = val.replace("usdtDiff:", "").split(":"); selectedLabel = `평균 김프 대비 ${p[0]}% ${p[1] === "high" ? "더 높은" : "더 낮은"}`; }
                       }
                       return (
                         <Pressable
@@ -1738,6 +2245,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.dark.cardBorder,
   },
+  customApplyBtnActive: {
+    borderColor: "rgba(247,147,26,0.55)",
+    backgroundColor: "rgba(247,147,26,0.12)",
+  },
   customApplyBtnDisabled: {
     opacity: 0.5,
   },
@@ -2147,6 +2658,10 @@ const styles = StyleSheet.create({
     borderColor: Colors.dark.cardBorder,
     textAlign: "center" as const,
   },
+  maInput: {
+    flex: 0.9,
+    minWidth: 70,
+  },
   taCustomInputActive: {
     borderColor: Colors.dark.accent,
   },
@@ -2169,6 +2684,48 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: "Inter_600SemiBold",
     color: Colors.dark.accent,
+  },
+  kimchiCompareInputRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginTop: 10,
+  },
+  kimchiCompareDiffInput: {
+    flex: 1,
+  },
+  kimchiCompareActionRow: {
+    flexDirection: "row" as const,
+    gap: 8,
+    marginTop: 8,
+  },
+  kimchiCompareDirBtn: {
+    flex: 1,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.dark.cardBorder,
+    backgroundColor: Colors.dark.surfaceElevated,
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+  },
+  kimchiCompareDirBtnActive: {
+    borderColor: "rgba(247,147,26,0.5)",
+    backgroundColor: "rgba(247,147,26,0.12)",
+  },
+  kimchiCompareDirText: {
+    fontSize: 14,
+    fontFamily: "Inter_600SemiBold",
+    color: Colors.dark.textSecondary,
+  },
+  kimchiCompareDirTextActive: {
+    color: Colors.dark.accent,
+  },
+  kimchiCompareApplyBtn: {
+    minWidth: 68,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
   },
   betaDirRow: {
     flexDirection: "row" as const,
