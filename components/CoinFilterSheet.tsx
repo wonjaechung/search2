@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -9,11 +9,15 @@ import {
   Dimensions,
   Platform,
   TextInput,
+  PanResponder,
+  type GestureResponderEvent,
+  type LayoutChangeEvent,
 } from "react-native";
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { useAnimatedStyle, withTiming, FadeIn, SlideInRight, SlideInDown } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Svg, { Path } from "react-native-svg";
 import Colors from "@/constants/colors";
 import { FILTER_CATEGORIES, FILTER_GROUPS, FilterCategoryId, FilterCategory, CoinItem, filterCoins } from "@/lib/coin-data";
 import { getScreenWidth, getScreenHeight } from "@/lib/screen-utils";
@@ -100,13 +104,21 @@ export default function CoinFilterSheet({
   const [detailCategory, setDetailCategory] = useState<FilterCategoryId | null>(null);
   const [activeTab, setActiveTab] = useState(0);
 
-  const [customRankMin, setCustomRankMin] = useState("");
-  const [customRankMax, setCustomRankMax] = useState("");
+  const [mcCustomMode, setMcCustomMode] = useState(false);
+  const [mcRangeMin, setMcRangeMin] = useState(1);
+  const [mcRangeMax, setMcRangeMax] = useState(100);
+  const mcSliderWidth = useRef(0);
+  const mcDragThumb = useRef<"min" | "max" | null>(null);
   const [customCapMin, setCustomCapMin] = useState("");
   const [customCapMax, setCustomCapMax] = useState("");
   const [customChangePeriod, setCustomChangePeriod] = useState("24h");
   const [customChangePct, setCustomChangePct] = useState("");
   const [customChangeDir, setCustomChangeDir] = useState<"up" | "down">("up");
+  const [changeCustomMode, setChangeCustomMode] = useState(false);
+  const [changeRangeMin, setChangeRangeMin] = useState(0);
+  const [changeRangeMax, setChangeRangeMax] = useState(50);
+  const sliderTrackWidth = useRef(0);
+  const activeDragThumb = useRef<"min" | "max" | null>(null);
   const [customVolMin, setCustomVolMin] = useState("");
   const [customVolMax, setCustomVolMax] = useState("");
   const [customRvolPeriod, setCustomRvolPeriod] = useState<(typeof RVOL_PERIOD_OPTIONS)[number]["key"]>("30d");
@@ -114,15 +126,40 @@ export default function CoinFilterSheet({
   const [athPeriod, setAthPeriod] = useState("all");
   const [athPct, setAthPct] = useState("");
   const [athDir, setAthDir] = useState<"under" | "over">("over");
+  const [athCustomMode, setAthCustomMode] = useState(false);
+  const [athRangeMin, setAthRangeMin] = useState(0);
+  const [athRangeMax, setAthRangeMax] = useState(100);
+  const athSliderWidth = useRef(0);
+  const athDragThumb = useRef<"min" | "max" | null>(null);
   const [atlPeriod, setAtlPeriod] = useState("all");
   const [atlPct, setAtlPct] = useState("");
   const [atlDir, setAtlDir] = useState<"under" | "over">("over");
+  const [atlCustomMode, setAtlCustomMode] = useState(false);
+  const [atlRangeMin, setAtlRangeMin] = useState(0);
+  const [atlRangeMax, setAtlRangeMax] = useState(1000);
+  const atlSliderWidth = useRef(0);
+  const atlDragThumb = useRef<"min" | "max" | null>(null);
   const [customRsiMin, setCustomRsiMin] = useState("");
   const [customRsiMax, setCustomRsiMax] = useState("");
   const [customBetaMin, setCustomBetaMin] = useState("");
   const [customBetaMax, setCustomBetaMax] = useState("");
   const [rsiPeriod, setRsiPeriod] = useState("14");
   const [betaDir, setBetaDir] = useState<"same" | "opp">("same");
+  const [maAlignDir, setMaAlignDir] = useState<"golden" | "death">("golden");
+  const [maShort, setMaShort] = useState("5");
+  const [maMid, setMaMid] = useState("20");
+  const [maLong, setMaLong] = useState("60");
+  const [volCustomMode, setVolCustomMode] = useState(false);
+  const [volRangeMin, setVolRangeMin] = useState(1);
+  const [volRangeMax, setVolRangeMax] = useState(100);
+  const volSliderWidth = useRef(0);
+  const volDragThumb = useRef<"min" | "max" | null>(null);
+  const [newHLType, setNewHLType] = useState<"high" | "low">("high");
+  const [newHLPeriod, setNewHLPeriod] = useState("7");
+  const [crossDir, setCrossDir] = useState<"golden" | "death">("golden");
+  const [crossShort, setCrossShort] = useState("5");
+  const [crossLong, setCrossLong] = useState("20");
+  const [crossPeriod, setCrossPeriod] = useState("7");
 
   const activeFilterCount = Object.values(localFilters).filter(Boolean).length;
   const resultCount = filterCoins(localFilters, coinsSource).length;
@@ -164,6 +201,12 @@ export default function CoinFilterSheet({
       streakDown: null,
       rsi: null,
       beta: null,
+      maAlign: null,
+      maCross: null,
+      newHighLow: null,
+      depositSurge: null,
+      fewAccount: null,
+      unrealizedPnl: null,
     });
   }, []);
 
@@ -183,8 +226,9 @@ export default function CoinFilterSheet({
       setLocalFilters({ ...filters });
       setDetailCategory(initialOpenCategory ?? null);
       setActiveTab(0);
-      setCustomRankMin("");
-      setCustomRankMax("");
+      setMcCustomMode(false);
+      setMcRangeMin(1);
+      setMcRangeMax(100);
       setCustomCapMin("");
       setCustomCapMax("");
       setCustomChangePeriod("24h");
@@ -201,8 +245,9 @@ export default function CoinFilterSheet({
       const mc = filters.marketCap;
       if (mc && mc.startsWith("customRank:")) {
         const parts = mc.replace("customRank:", "").split("-");
-        setCustomRankMin(parts[0]);
-        setCustomRankMax(parts[1]);
+        setMcCustomMode(true);
+        setMcRangeMin(parseInt(parts[0], 10) || 1);
+        setMcRangeMax(parseInt(parts[1], 10) || 100);
       }
       if (mc && mc.startsWith("customCap:")) {
         const parts = mc.replace("customCap:", "").split("-");
@@ -319,7 +364,9 @@ export default function CoinFilterSheet({
               contentContainerStyle={styles.detailContent}
             >
               <Text style={styles.detailTitle}>{currentDetail.title}</Text>
-              <Text style={styles.detailSubtitle}>{currentDetail.subtitle}</Text>
+              {detailCategory !== "beta" && detailCategory !== "rsi" && detailCategory !== "rvol" && detailCategory !== "maAlign" && detailCategory !== "maCross" && detailCategory !== "changeRate" && detailCategory !== "athDrop" && detailCategory !== "atlRise" && detailCategory !== "newHighLow" && detailCategory !== "volume" && detailCategory !== "depositSurge" && detailCategory !== "fewAccount" && detailCategory !== "unrealizedPnl" && currentDetail.subtitle ? (
+                <Text style={styles.detailSubtitle}>{currentDetail.subtitle}</Text>
+              ) : null}
 
               {detailCategory === "marketCap" ? (
                 <>
@@ -329,477 +376,1088 @@ export default function CoinFilterSheet({
                       <FilterOptionRow
                         key={option.id}
                         option={option}
-                        isSelected={localFilters.marketCap === option.id}
-                        onPress={() => toggleOption("marketCap", option.id)}
+                        isSelected={!mcCustomMode && localFilters.marketCap === option.id}
+                        onPress={() => {
+                          setMcCustomMode(false);
+                          toggleOption("marketCap", option.id);
+                        }}
                       />
                     ))}
                   </View>
 
-                  <View style={styles.customInputSection}>
-                    <Text style={styles.customInputLabel}>직접 설정</Text>
-                    <View style={styles.customInputRow}>
-                      <TextInput
-                        style={[styles.customInput, localFilters.marketCap?.startsWith("customRank:") && styles.customInputActive]}
-                        placeholder="최소"
-                        placeholderTextColor={Colors.dark.textTertiary}
-                        keyboardType="number-pad"
-                        value={customRankMin}
-                        onChangeText={setCustomRankMin}
-                      />
-                      <Text style={styles.customInputSep}>~</Text>
-                      <TextInput
-                        style={[styles.customInput, localFilters.marketCap?.startsWith("customRank:") && styles.customInputActive]}
-                        placeholder="최대"
-                        placeholderTextColor={Colors.dark.textTertiary}
-                        keyboardType="number-pad"
-                        value={customRankMax}
-                        onChangeText={setCustomRankMax}
-                      />
-                      <Text style={styles.customInputUnit}>위</Text>
-                      <Pressable
-                        onPress={() => {
-                          if (customRankMin && customRankMax) {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setLocalFilters(prev => ({ ...prev, marketCap: `customRank:${customRankMin}-${customRankMax}` }));
-                          }
-                        }}
-                        style={({ pressed }) => [
-                          styles.customApplyBtn,
-                          (!customRankMin || !customRankMax) && styles.customApplyBtnDisabled,
-                          pressed && { opacity: 0.7 },
-                        ]}
-                      >
-                        <Feather name="check" size={16} color={customRankMin && customRankMax ? Colors.dark.accent : Colors.dark.textTertiary} />
-                      </Pressable>
-                    </View>
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setMcCustomMode(!mcCustomMode);
+                        if (!mcCustomMode) {
+                          setLocalFilters(prev => ({ ...prev, marketCap: `customRank:${mcRangeMin}-${mcRangeMax}` }));
+                        }
+                      }}
+                    >
+                      <Text style={[styles.taSectionTitle, mcCustomMode && { color: Colors.dark.accent }]}>직접설정</Text>
+                    </Pressable>
                   </View>
+                  {mcCustomMode && (() => {
+                    const sliderMax = 200;
+                    const minRatio = mcRangeMin / sliderMax;
+                    const maxRatio = mcRangeMax / sliderMax;
+                    const handleMcSlider = (e: GestureResponderEvent, isGrant?: boolean) => {
+                      const x = Math.max(0, e.nativeEvent.locationX);
+                      const w = mcSliderWidth.current || 200;
+                      const pct = Math.round(Math.min(1, Math.max(0, x / w)) * sliderMax);
+                      const val = Math.max(1, pct);
+                      if (isGrant) {
+                        const distToMin = Math.abs(val - mcRangeMin);
+                        const distToMax = Math.abs(val - mcRangeMax);
+                        mcDragThumb.current = distToMin <= distToMax ? "min" : "max";
+                      }
+                      let newMin = mcRangeMin;
+                      let newMax = mcRangeMax;
+                      if (mcDragThumb.current === "min") {
+                        newMin = Math.min(val, mcRangeMax);
+                      } else {
+                        newMax = Math.max(val, mcRangeMin);
+                      }
+                      setMcRangeMin(newMin);
+                      setMcRangeMax(newMax);
+                      setLocalFilters(prev => ({ ...prev, marketCap: `customRank:${newMin}-${newMax}` }));
+                    };
+                    return (
+                      <View style={{ marginTop: 12, backgroundColor: Colors.dark.surface, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 20 }}>
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginBottom: 14 }}>
+                          <View style={{ flex: 1, backgroundColor: Colors.dark.card, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+                            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.dark.text, textAlign: "center" as const }}>
+                              {mcRangeMin}위
+                            </Text>
+                          </View>
+                          <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>~</Text>
+                          <View style={{ flex: 1, backgroundColor: Colors.dark.card, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+                            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.dark.text, textAlign: "center" as const }}>
+                              {mcRangeMax}위
+                            </Text>
+                          </View>
+                        </View>
+                        <View
+                          onLayout={(ev: LayoutChangeEvent) => { mcSliderWidth.current = ev.nativeEvent.layout.width; }}
+                          onStartShouldSetResponder={() => true}
+                          onMoveShouldSetResponder={() => true}
+                          onResponderGrant={(e: GestureResponderEvent) => handleMcSlider(e, true)}
+                          onResponderMove={(e: GestureResponderEvent) => handleMcSlider(e)}
+                          style={{ height: 40, justifyContent: "center" as const }}
+                        >
+                          <View style={{ height: 4, borderRadius: 2, backgroundColor: Colors.dark.card, position: "absolute" as const, left: 0, right: 0 }} />
+                          <View style={{ height: 4, borderRadius: 2, backgroundColor: Colors.dark.accent, position: "absolute" as const, left: `${minRatio * 100}%` as any, right: `${(1 - maxRatio) * 100}%` as any }} />
+                          <View style={{
+                            position: "absolute" as const, left: `${minRatio * 100}%` as any, marginLeft: -12,
+                            width: 24, height: 24, borderRadius: 12, backgroundColor: "#fff",
+                            shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 4,
+                          }} />
+                          <View style={{
+                            position: "absolute" as const, left: `${maxRatio * 100}%` as any, marginLeft: -12,
+                            width: 24, height: 24, borderRadius: 12, backgroundColor: "#fff",
+                            shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 4,
+                          }} />
+                        </View>
+                        <View style={{ flexDirection: "row" as const, justifyContent: "space-between" as const, marginTop: 4 }}>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>1위</Text>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>{sliderMax}위</Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
 
                   <View style={styles.sectionDivider} />
 
                   <Text style={styles.sectionLabel}>시가총액 규모</Text>
                   <View style={styles.optionsList}>
-                    {currentDetail.options.filter(o => ["mega", "large", "mid", "small"].includes(o.id)).map(option => (
+                    {currentDetail.options.filter(o => !o.id.startsWith("top")).map(option => (
                       <FilterOptionRow
                         key={option.id}
                         option={option}
-                        isSelected={localFilters.marketCap === option.id}
-                        onPress={() => toggleOption("marketCap", option.id)}
+                        isSelected={!mcCustomMode && localFilters.marketCap === option.id}
+                        onPress={() => {
+                          setMcCustomMode(false);
+                          toggleOption("marketCap", option.id);
+                        }}
                       />
                     ))}
                   </View>
 
-                  <View style={styles.customInputSection}>
-                    <Text style={styles.customInputLabel}>직접 설정</Text>
-                    <View style={styles.customInputRow}>
-                      <TextInput
-                        style={[styles.customInput, localFilters.marketCap?.startsWith("customCap:") && styles.customInputActive]}
-                        placeholder="최소"
-                        placeholderTextColor={Colors.dark.textTertiary}
-                        keyboardType="decimal-pad"
-                        value={customCapMin}
-                        onChangeText={setCustomCapMin}
-                      />
-                      <Text style={styles.customInputSep}>~</Text>
-                      <TextInput
-                        style={[styles.customInput, localFilters.marketCap?.startsWith("customCap:") && styles.customInputActive]}
-                        placeholder="최대"
-                        placeholderTextColor={Colors.dark.textTertiary}
-                        keyboardType="decimal-pad"
-                        value={customCapMax}
-                        onChangeText={setCustomCapMax}
-                      />
-                      <Text style={styles.customInputUnit}>억</Text>
-                      <Pressable
-                        onPress={() => {
-                          if (customCapMin && customCapMax) {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setLocalFilters(prev => ({ ...prev, marketCap: `customCap:${customCapMin}-${customCapMax}` }));
-                          }
-                        }}
-                        style={({ pressed }) => [
-                          styles.customApplyBtn,
-                          (!customCapMin || !customCapMax) && styles.customApplyBtnDisabled,
-                          pressed && { opacity: 0.7 },
-                        ]}
-                      >
-                        <Feather name="check" size={16} color={customCapMin && customCapMax ? Colors.dark.accent : Colors.dark.textTertiary} />
-                      </Pressable>
-                    </View>
-                  </View>
                 </>
               ) : detailCategory === "changeRate" ? (
                 <>
-                  <Text style={styles.crSectionTitle}>기간</Text>
-                  <View style={styles.customChipRow}>
-                    {(["1h", "24h", "7d", "30d"] as const).map(p => (
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      선택한 기간 동안{"\n"}
+                      <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>가격이 얼마나 올랐거나 내렸는지</Text> 필터링해요
+                    </Text>
+                    <View style={{ marginTop: 12, alignItems: "center" as const }}>
+                      <Svg width="100%" height={65} viewBox="0 0 200 65">
+                        {/* baseline */}
+                        <Path d="M20,35 L180,35" stroke={Colors.dark.textTertiary} strokeWidth={1} strokeDasharray="4,3" fill="none" opacity={0.5} />
+                        {/* up line */}
+                        <Path d="M20,35 Q60,33 100,28 Q140,18 180,10" stroke="#4CAF50" strokeWidth={2.5} fill="none" />
+                        {/* down line */}
+                        <Path d="M20,35 Q60,37 100,42 Q140,52 180,58" stroke="#F44336" strokeWidth={2.5} fill="none" />
+                      </Svg>
+                      <View style={{ flexDirection: "row" as const, gap: 16, marginTop: 2 }}>
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                          <View style={{ width: 10, height: 2.5, backgroundColor: "#4CAF50", borderRadius: 1 }} />
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: "#4CAF50" }}>상승</Text>
+                        </View>
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                          <View style={{ width: 10, height: 2.5, backgroundColor: "#F44336", borderRadius: 1 }} />
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: "#F44336" }}>하락</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>기간</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    {([
+                      { id: "1h", label: "1시간" },
+                      { id: "24h", label: "24시간" },
+                      { id: "7d", label: "7일" },
+                      { id: "30d", label: "30일" },
+                    ] as const).map(p => (
                       <Pressable
-                        key={p}
+                        key={p.id}
                         onPress={() => {
                           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setCustomChangePeriod(p);
+                          setCustomChangePeriod(p.id);
                           if (customChangePct) {
-                            setLocalFilters(prev => ({ ...prev, changeRate: `custom:${p}:${customChangePct}:${customChangeDir}` }));
+                            setLocalFilters(prev => ({ ...prev, changeRate: `custom:${p.id}:${customChangePct}:${customChangeDir}` }));
                           }
                         }}
-                        style={[styles.periodChip, customChangePeriod === p && styles.periodChipActive]}
+                        style={[styles.betaDirBtn, customChangePeriod === p.id && { borderColor: Colors.dark.accent, backgroundColor: "rgba(10,132,255,0.1)" }]}
                       >
-                        <Text style={[styles.periodChipText, customChangePeriod === p && styles.periodChipTextActive]}>
-                          {p === "1h" ? "1시간" : p === "24h" ? "24시간" : p === "7d" ? "7일" : "30일"}
-                        </Text>
+                        <Text style={[styles.betaDirText, customChangePeriod === p.id && { color: Colors.dark.accent }]}>{p.label}</Text>
                       </Pressable>
                     ))}
                   </View>
 
-                  <Text style={[styles.crSectionTitle, { marginTop: 20 }]}>빠른 선택</Text>
-                  <View style={styles.crQuickGrid}>
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>방향</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setCustomChangeDir("up");
+                        if (customChangePct) {
+                          setLocalFilters(prev => ({ ...prev, changeRate: `custom:${customChangePeriod}:${customChangePct}:up` }));
+                        }
+                      }}
+                      style={[styles.betaDirBtn, customChangeDir === "up" && { borderColor: "#4CAF50", backgroundColor: "rgba(76,175,80,0.1)" }]}
+                    >
+                      <Feather name="trending-up" size={16} color={customChangeDir === "up" ? "#4CAF50" : Colors.dark.textTertiary} />
+                      <Text style={[styles.betaDirText, customChangeDir === "up" && { color: "#4CAF50" }]}>상승</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setCustomChangeDir("down");
+                        if (customChangePct) {
+                          setLocalFilters(prev => ({ ...prev, changeRate: `custom:${customChangePeriod}:${customChangePct}:down` }));
+                        }
+                      }}
+                      style={[styles.betaDirBtn, customChangeDir === "down" && { borderColor: "#F44336", backgroundColor: "rgba(244,67,54,0.1)" }]}
+                    >
+                      <Feather name="trending-down" size={16} color={customChangeDir === "down" ? "#F44336" : Colors.dark.textTertiary} />
+                      <Text style={[styles.betaDirText, customChangeDir === "down" && { color: "#F44336" }]}>하락</Text>
+                    </Pressable>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>변동폭</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
                     {[
-                      { label: "+3% 이상", pct: "3", dir: "up" as const },
-                      { label: "+5% 이상", pct: "5", dir: "up" as const },
-                      { label: "+10% 이상", pct: "10", dir: "up" as const },
-                      { label: "+20% 이상", pct: "20", dir: "up" as const },
-                      { label: "-3% 이하", pct: "3", dir: "down" as const },
-                      { label: "-5% 이하", pct: "5", dir: "down" as const },
-                      { label: "-10% 이하", pct: "10", dir: "down" as const },
-                      { label: "-20% 이하", pct: "20", dir: "down" as const },
+                      { id: "5", label: "5% 이상" },
+                      { id: "10", label: "10% 이상" },
                     ].map(item => {
-                      const isActive = localFilters.changeRate === `custom:${customChangePeriod}:${item.pct}:${item.dir}`;
+                      const isActive = !changeCustomMode && customChangePct === item.id && localFilters.changeRate === `custom:${customChangePeriod}:${item.id}:${customChangeDir}`;
                       return (
                         <Pressable
-                          key={item.label}
+                          key={item.id}
                           onPress={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            const val = `custom:${customChangePeriod}:${item.pct}:${item.dir}`;
-                            setCustomChangePct(item.pct);
-                            setCustomChangeDir(item.dir);
+                            setChangeCustomMode(false);
+                            setCustomChangePct(item.id);
+                            const val = `custom:${customChangePeriod}:${item.id}:${customChangeDir}`;
                             setLocalFilters(prev => ({ ...prev, changeRate: prev.changeRate === val ? null : val }));
                           }}
-                          style={[
-                            styles.crQuickChip,
-                            item.dir === "up" ? styles.crQuickChipUp : styles.crQuickChipDown,
-                            isActive && (item.dir === "up" ? styles.crQuickChipUpActive : styles.crQuickChipDownActive),
-                          ]}
+                          style={[styles.betaDirBtn, isActive && { borderColor: Colors.dark.accent, backgroundColor: "rgba(10,132,255,0.1)" }]}
                         >
-                          <Text style={[
-                            styles.crQuickChipText,
-                            item.dir === "up" ? styles.crQuickChipTextUp : styles.crQuickChipTextDown,
-                            isActive && styles.crQuickChipTextActive,
-                          ]}>
-                            {item.label}
-                          </Text>
+                          <Text style={[styles.betaDirText, isActive && { color: Colors.dark.accent }]}>{item.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setChangeCustomMode(true);
+                        setLocalFilters(prev => ({ ...prev, changeRate: `custom:${customChangePeriod}:${changeRangeMin}:${changeRangeMax}:${customChangeDir}` }));
+                      }}
+                      style={[styles.betaDirBtn, changeCustomMode && { borderColor: Colors.dark.accent, backgroundColor: "rgba(10,132,255,0.1)" }]}
+                    >
+                      <Text style={[styles.betaDirText, changeCustomMode && { color: Colors.dark.accent }]}>직접설정</Text>
+                    </Pressable>
+                  </View>
+                  {changeCustomMode && (() => {
+                    const sliderMax = 50;
+                    const minRatio = changeRangeMin / sliderMax;
+                    const maxRatio = changeRangeMax / sliderMax;
+                    const handleSliderTouch = (e: GestureResponderEvent, isGrant?: boolean) => {
+                      const x = Math.max(0, e.nativeEvent.locationX);
+                      const w = sliderTrackWidth.current || 200;
+                      const pct = Math.round(Math.min(1, Math.max(0, x / w)) * sliderMax);
+                      if (isGrant) {
+                        const distToMin = Math.abs(pct - changeRangeMin);
+                        const distToMax = Math.abs(pct - changeRangeMax);
+                        activeDragThumb.current = distToMin <= distToMax ? "min" : "max";
+                      }
+                      let newMin = changeRangeMin;
+                      let newMax = changeRangeMax;
+                      if (activeDragThumb.current === "min") {
+                        newMin = Math.min(pct, changeRangeMax);
+                      } else {
+                        newMax = Math.max(pct, changeRangeMin);
+                      }
+                      setChangeRangeMin(newMin);
+                      setChangeRangeMax(newMax);
+                      setLocalFilters(prev => ({ ...prev, changeRate: `custom:${customChangePeriod}:${newMin}:${newMax}:${customChangeDir}` }));
+                    };
+                    return (
+                      <View style={{ marginTop: 12, backgroundColor: Colors.dark.surface, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 20 }}>
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginBottom: 14 }}>
+                          <View style={{ flex: 1, backgroundColor: Colors.dark.card, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+                            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.dark.text, textAlign: "center" as const }}>
+                              {changeRangeMin}% 이상
+                            </Text>
+                          </View>
+                          <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>~</Text>
+                          <View style={{ flex: 1, backgroundColor: Colors.dark.card, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+                            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.dark.text, textAlign: "center" as const }}>
+                              {changeRangeMax}% 이하
+                            </Text>
+                          </View>
+                        </View>
+                        <View
+                          onLayout={(ev: LayoutChangeEvent) => {
+                            sliderTrackWidth.current = ev.nativeEvent.layout.width;
+                          }}
+                          onStartShouldSetResponder={() => true}
+                          onMoveShouldSetResponder={() => true}
+                          onResponderGrant={(e: GestureResponderEvent) => handleSliderTouch(e, true)}
+                          onResponderMove={(e: GestureResponderEvent) => handleSliderTouch(e)}
+                          style={{ height: 40, justifyContent: "center" as const }}
+                        >
+                          <View style={{ height: 4, borderRadius: 2, backgroundColor: Colors.dark.card, position: "absolute" as const, left: 0, right: 0 }} />
+                          <View style={{ height: 4, borderRadius: 2, backgroundColor: Colors.dark.accent, position: "absolute" as const, left: `${minRatio * 100}%` as any, right: `${(1 - maxRatio) * 100}%` as any }} />
+                          <View style={{
+                            position: "absolute" as const,
+                            left: `${minRatio * 100}%` as any,
+                            marginLeft: -12,
+                            width: 24, height: 24, borderRadius: 12,
+                            backgroundColor: "#fff",
+                            shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4,
+                            elevation: 4,
+                          }} />
+                          <View style={{
+                            position: "absolute" as const,
+                            left: `${maxRatio * 100}%` as any,
+                            marginLeft: -12,
+                            width: 24, height: 24, borderRadius: 12,
+                            backgroundColor: "#fff",
+                            shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4,
+                            elevation: 4,
+                          }} />
+                        </View>
+                        <View style={{ flexDirection: "row" as const, justifyContent: "space-between" as const, marginTop: 4 }}>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>0%</Text>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>{sliderMax}%</Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
+                </>
+              ) : detailCategory === "volume" ? (
+                <>
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      24시간 동안 거래된 금액이{"\n"}
+                      <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>얼마나 큰 코인인지</Text> 필터링해요
+                    </Text>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>거래 순위</Text>
+                  </View>
+                  <View style={styles.optionsList}>
+                    {[
+                      { id: "top5", label: "Top 5" },
+                      { id: "top10", label: "Top 10" },
+                      { id: "top20", label: "Top 20" },
+                      { id: "top50", label: "Top 50" },
+                      { id: "top100", label: "Top 100" },
+                    ].map(item => {
+                      const isActive = !volCustomMode && localFilters.volume === item.id;
+                      return (
+                        <FilterOptionRow
+                          key={item.id}
+                          option={item}
+                          isSelected={isActive}
+                          onPress={() => {
+                            setVolCustomMode(false);
+                            toggleOption("volume", item.id);
+                          }}
+                        />
+                      );
+                    })}
+                  </View>
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setVolCustomMode(!volCustomMode);
+                        if (!volCustomMode) {
+                          setLocalFilters(prev => ({ ...prev, volume: `customRank:${volRangeMin}-${volRangeMax}` }));
+                        }
+                      }}
+                    >
+                      <Text style={[styles.taSectionTitle, volCustomMode && { color: Colors.dark.accent }]}>직접설정</Text>
+                    </Pressable>
+                  </View>
+                  {volCustomMode && (() => {
+                    const sliderMax = 200;
+                    const minRatio = volRangeMin / sliderMax;
+                    const maxRatio = volRangeMax / sliderMax;
+                    const handleVolSlider = (e: GestureResponderEvent, isGrant?: boolean) => {
+                      const x = Math.max(0, e.nativeEvent.locationX);
+                      const w = volSliderWidth.current || 200;
+                      const pct = Math.round(Math.min(1, Math.max(0, x / w)) * sliderMax);
+                      const val = Math.max(1, pct);
+                      if (isGrant) {
+                        const distToMin = Math.abs(val - volRangeMin);
+                        const distToMax = Math.abs(val - volRangeMax);
+                        volDragThumb.current = distToMin <= distToMax ? "min" : "max";
+                      }
+                      let newMin = volRangeMin;
+                      let newMax = volRangeMax;
+                      if (volDragThumb.current === "min") {
+                        newMin = Math.min(val, volRangeMax);
+                      } else {
+                        newMax = Math.max(val, volRangeMin);
+                      }
+                      setVolRangeMin(newMin);
+                      setVolRangeMax(newMax);
+                      setLocalFilters(prev => ({ ...prev, volume: `customRank:${newMin}-${newMax}` }));
+                    };
+                    return (
+                      <View style={{ marginTop: 12, backgroundColor: Colors.dark.surface, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 20 }}>
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginBottom: 14 }}>
+                          <View style={{ flex: 1, backgroundColor: Colors.dark.card, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+                            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.dark.text, textAlign: "center" as const }}>
+                              {volRangeMin}위
+                            </Text>
+                          </View>
+                          <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>~</Text>
+                          <View style={{ flex: 1, backgroundColor: Colors.dark.card, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+                            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.dark.text, textAlign: "center" as const }}>
+                              {volRangeMax}위
+                            </Text>
+                          </View>
+                        </View>
+                        <View
+                          onLayout={(ev: LayoutChangeEvent) => { volSliderWidth.current = ev.nativeEvent.layout.width; }}
+                          onStartShouldSetResponder={() => true}
+                          onMoveShouldSetResponder={() => true}
+                          onResponderGrant={(e: GestureResponderEvent) => handleVolSlider(e, true)}
+                          onResponderMove={(e: GestureResponderEvent) => handleVolSlider(e)}
+                          style={{ height: 40, justifyContent: "center" as const }}
+                        >
+                          <View style={{ height: 4, borderRadius: 2, backgroundColor: Colors.dark.card, position: "absolute" as const, left: 0, right: 0 }} />
+                          <View style={{ height: 4, borderRadius: 2, backgroundColor: Colors.dark.accent, position: "absolute" as const, left: `${minRatio * 100}%` as any, right: `${(1 - maxRatio) * 100}%` as any }} />
+                          <View style={{
+                            position: "absolute" as const, left: `${minRatio * 100}%` as any, marginLeft: -12,
+                            width: 24, height: 24, borderRadius: 12, backgroundColor: "#fff",
+                            shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 4,
+                          }} />
+                          <View style={{
+                            position: "absolute" as const, left: `${maxRatio * 100}%` as any, marginLeft: -12,
+                            width: 24, height: 24, borderRadius: 12, backgroundColor: "#fff",
+                            shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 4,
+                          }} />
+                        </View>
+                        <View style={{ flexDirection: "row" as const, justifyContent: "space-between" as const, marginTop: 4 }}>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>1위</Text>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>{sliderMax}위</Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
+                </>
+              ) : detailCategory === "rvol" ? (
+                <>
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      평균 거래량 대비 지금 얼마나 활발할까?{"\n"}
+                      <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>평소 대비 거래량</Text>을 배수로 보여줘요
+                    </Text>
+                    <View style={{ marginTop: 10 }}>
+                      {[
+                        { label: "평소", mult: 1.0, color: Colors.dark.textSecondary, isBase: true },
+                        { label: "2배", mult: 2.0, color: Colors.dark.accent },
+                        { label: "3배", mult: 3.0, color: "#FF9800" },
+                        { label: "5배", mult: 5.0, color: "#F44336" },
+                      ].map((item, idx) => {
+                        const barWidth = Math.min(item.mult / 5.0, 1) * 100;
+                        return (
+                          <View key={idx} style={styles.betaBarRow}>
+                            <Text style={[styles.betaBarLabel, { color: item.color }]}>{item.label}</Text>
+                            <View style={styles.betaBarTrack}>
+                              {item.isBase ? (
+                                <View style={[styles.betaBarFill, {
+                                  width: `${barWidth}%`,
+                                  backgroundColor: "transparent",
+                                  borderWidth: 1.5,
+                                  borderColor: Colors.dark.textTertiary,
+                                  borderStyle: "dashed" as const,
+                                }]} />
+                              ) : (
+                                <View style={[styles.betaBarFill, {
+                                  width: `${barWidth}%`,
+                                  backgroundColor: `${item.color}99`,
+                                }]} />
+                              )}
+                            </View>
+                            <Text style={[styles.betaBarResult, { color: item.isBase ? Colors.dark.textSecondary : item.color }]}>{item.mult}x</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>평균 기준 기간</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    {RVOL_PERIOD_OPTIONS.map(p => {
+                      const active = customRvolPeriod === p.key;
+                      return (
+                        <Pressable
+                          key={p.key}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setCustomRvolPeriod(p.key);
+                          }}
+                          style={[styles.betaDirBtn, active && styles.betaDirBtnActive]}
+                        >
+                          <Text style={[styles.betaDirText, active && styles.betaDirTextActive]}>{p.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>최소 거래량</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    {currentDetail.options.map(option => {
+                      const sel = localFilters.rvol === option.id;
+                      const color = option.id === "rvol_200" ? Colors.dark.accent : option.id === "rvol_300" ? "#FF9800" : "#F44336";
+                      return (
+                        <Pressable
+                          key={option.id}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            toggleOption("rvol", option.id);
+                          }}
+                          style={[styles.betaDirBtn, sel && { borderColor: color, backgroundColor: `${color}18` }]}
+                        >
+                          <Text style={[styles.betaDirText, sel && { color }]}>{option.label}</Text>
+                          <Text style={styles.betaDirDesc}>{option.description}</Text>
                         </Pressable>
                       );
                     })}
                   </View>
 
                   <View style={styles.sectionDivider} />
-                  <Text style={styles.crSectionTitle}>직접 입력</Text>
-                  <View style={[styles.customInputRow, { marginTop: 8 }]}>
-                    <Pressable
-                      onPress={() => {
-                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                        const next = customChangeDir === "up" ? "down" : "up";
-                        setCustomChangeDir(next);
-                        if (customChangePct) {
-                          setLocalFilters(prev => ({ ...prev, changeRate: `custom:${customChangePeriod}:${customChangePct}:${next}` }));
-                        }
-                      }}
-                      style={[styles.dirToggle, customChangeDir === "up" ? styles.dirToggleUp : styles.dirToggleDown]}
-                    >
-                      <Feather name={customChangeDir === "up" ? "trending-up" : "trending-down"} size={16} color={customChangeDir === "up" ? "#4CAF50" : "#F44336"} />
-                    </Pressable>
+                  <View style={[styles.taSectionHeader, { marginTop: 4 }]}>
+                    <Text style={styles.taSectionTitle}>직접 설정</Text>
+                  </View>
+                  <View style={styles.taCustomRow}>
+                    <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.dark.textSecondary }}>평균 대비</Text>
                     <TextInput
-                      style={[styles.customInput, { flex: 1 }, localFilters.changeRate?.startsWith("custom:") && styles.customInputActive]}
-                      placeholder="예: 5"
+                      style={[styles.taCustomInput, { flex: 1 }, localFilters.rvol?.startsWith("customRvol:") && styles.taCustomInputActive]}
+                      placeholder="예: 2"
                       placeholderTextColor={Colors.dark.textTertiary}
                       keyboardType="decimal-pad"
-                      value={customChangePct}
+                      value={customRvolPct}
                       onChangeText={(t) => {
-                        setCustomChangePct(t);
+                        setCustomRvolPct(t);
                         if (t) {
-                          setLocalFilters(prev => ({ ...prev, changeRate: `custom:${customChangePeriod}:${t}:${customChangeDir}` }));
+                          setLocalFilters((prev) => ({ ...prev, rvol: `customRvol:${customRvolPeriod}:${t}` }));
                         } else {
-                          setLocalFilters(prev => ({ ...prev, changeRate: null }));
+                          setLocalFilters((prev) => ({ ...prev, rvol: null }));
                         }
                       }}
                     />
-                    <Text style={styles.customInputUnit}>% {customChangeDir === "up" ? "이상" : "이하"}</Text>
+                    <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.dark.textSecondary }}>배 이상</Text>
                   </View>
-                  {localFilters.changeRate && (
-                    <View style={styles.crSummary}>
-                      <Feather name="info" size={13} color={Colors.dark.textTertiary} />
-                      <Text style={styles.crSummaryText}>
-                        {(() => {
-                          const pLabel = customChangePeriod === "1h" ? "1시간" : customChangePeriod === "24h" ? "24시간" : customChangePeriod === "7d" ? "7일" : "30일";
-                          return customChangeDir === "up"
-                            ? `${pLabel} 동안 ${customChangePct}% 이상 오른 코인`
-                            : `${pLabel} 동안 ${customChangePct}% 이상 내린 코인`;
-                        })()}
-                      </Text>
-                    </View>
-                  )}
                 </>
-              ) : detailCategory === "volume" ? (
+              ) : detailCategory === "depositSurge" ? (
                 <>
-                  <Text style={styles.sectionLabel}>거래 금액</Text>
-                  <View style={styles.optionsList}>
-                    {currentDetail.options.map(option => (
-                      <FilterOptionRow
-                        key={option.id}
-                        option={option}
-                        isSelected={localFilters.volume === option.id}
-                        onPress={() => toggleOption("volume", option.id)}
-                      />
-                    ))}
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      평소보다 거래소 입금량이 급격히 늘어난 코인이에요.{"\n"}
+                      <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>대량 매도 신호</Text>일 수 있어 주의가 필요해요
+                    </Text>
+                    <View style={{ marginTop: 10 }}>
+                      {[
+                        { label: "평소", mult: 1.0, color: Colors.dark.textSecondary, isBase: true, badge: "1x" },
+                        { label: "3배", mult: 3.0, color: Colors.dark.accent, isBase: false, badge: "주의" },
+                        { label: "4배", mult: 4.0, color: "#FF9800", isBase: false, badge: "경고" },
+                        { label: "5배", mult: 5.0, color: "#F44336", isBase: false, badge: "위험" },
+                      ].map((item, idx) => {
+                        const barWidth = Math.min(item.mult / 5.0, 1) * 100;
+                        return (
+                          <View key={idx} style={styles.betaBarRow}>
+                            <Text style={[styles.betaBarLabel, { color: item.color }]}>{item.label}</Text>
+                            <View style={styles.betaBarTrack}>
+                              {item.isBase ? (
+                                <View style={[styles.betaBarFill, {
+                                  width: `${barWidth}%`,
+                                  backgroundColor: "transparent",
+                                  borderWidth: 1.5,
+                                  borderColor: Colors.dark.textTertiary,
+                                  borderStyle: "dashed" as const,
+                                }]} />
+                              ) : (
+                                <View style={[styles.betaBarFill, {
+                                  width: `${barWidth}%`,
+                                  backgroundColor: `${item.color}99`,
+                                }]} />
+                              )}
+                            </View>
+                            <Text style={[styles.betaBarResult, { color: item.isBase ? Colors.dark.textSecondary : item.color }]}>{item.badge}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
                   </View>
 
-                  <View style={styles.customInputSection}>
-                    <Text style={styles.customInputLabel}>직접 설정</Text>
-                    <View style={styles.customInputRow}>
-                      <TextInput
-                        style={[styles.customInput, localFilters.volume?.startsWith("customVol:") && styles.customInputActive]}
-                        placeholder="최소"
-                        placeholderTextColor={Colors.dark.textTertiary}
-                        keyboardType="decimal-pad"
-                        value={customVolMin}
-                        onChangeText={(t) => {
-                          setCustomVolMin(t);
-                          if (t && customVolMax) {
-                            setLocalFilters((prev) => ({ ...prev, volume: `customVol:${t}-${customVolMax}` }));
-                          } else {
-                            setLocalFilters((prev) => ({ ...prev, volume: null }));
-                          }
-                        }}
-                      />
-                      <Text style={styles.customInputSep}>~</Text>
-                      <TextInput
-                        style={[styles.customInput, localFilters.volume?.startsWith("customVol:") && styles.customInputActive]}
-                        placeholder="최대"
-                        placeholderTextColor={Colors.dark.textTertiary}
-                        keyboardType="decimal-pad"
-                        value={customVolMax}
-                        onChangeText={(t) => {
-                          setCustomVolMax(t);
-                          if (customVolMin && t) {
-                            setLocalFilters((prev) => ({ ...prev, volume: `customVol:${customVolMin}-${t}` }));
-                          } else {
-                            setLocalFilters((prev) => ({ ...prev, volume: null }));
-                          }
-                        }}
-                      />
-                      <Text style={styles.customInputUnit}>억</Text>
-                    </View>
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>입금량 기준</Text>
                   </View>
-                </>
-              ) : detailCategory === "rvol" ? (
-                <>
-                  <Text style={styles.sectionLabel}>상대 거래량 (RVOL)</Text>
-                  <Text style={[styles.detailSubtitle, { marginBottom: 12 }]}>
-                    선택한 기간의 평균 거래량과 비교해 얼마나 늘었는지
-                  </Text>
-                  <View style={styles.customInputSection}>
-                    <Text style={styles.customInputLabel}>평균 기준 기간</Text>
-                    <View style={styles.customChipRow}>
-                      {RVOL_PERIOD_OPTIONS.map((p) => (
+                  <View style={styles.betaDirRow}>
+                    {currentDetail.options.map(option => {
+                      const sel = localFilters.depositSurge === option.id;
+                      const color = option.id === "dep_300" ? Colors.dark.accent : option.id === "dep_400" ? "#FF9800" : "#F44336";
+                      return (
                         <Pressable
-                          key={p.key}
+                          key={option.id}
                           onPress={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            setCustomRvolPeriod(p.key);
-                            if (customRvolPct) {
-                              setLocalFilters((prev) => ({ ...prev, rvol: `customRvol:${p.key}:${customRvolPct}` }));
-                            }
+                            toggleOption("depositSurge", option.id);
                           }}
-                          style={[styles.periodChip, customRvolPeriod === p.key && styles.periodChipActive]}
+                          style={[styles.betaDirBtn, sel && { borderColor: color, backgroundColor: `${color}18` }]}
                         >
-                          <Text style={[styles.periodChipText, customRvolPeriod === p.key && styles.periodChipTextActive]}>
-                            {p.label}
-                          </Text>
+                          <Text style={[styles.betaDirText, sel && { color }]}>{option.label}</Text>
                         </Pressable>
-                      ))}
-                    </View>
-                  </View>
-
-                  <View style={styles.sectionDivider} />
-                  <Text style={styles.customInputLabel}>빠른 선택</Text>
-                  <View style={styles.optionsList}>
-                    {currentDetail.options.map(option => (
-                      <FilterOptionRow
-                        key={option.id}
-                        option={option}
-                        isSelected={localFilters.rvol === option.id}
-                        onPress={() => toggleOption("rvol", option.id)}
-                      />
-                    ))}
-                  </View>
-
-                  <View style={styles.customInputSection}>
-                    <Text style={styles.customInputLabel}>직접 설정</Text>
-                    <View style={styles.customInputRow}>
-                      <Text style={styles.customInputUnit}>평균 대비</Text>
-                      <TextInput
-                        style={[styles.customInput, localFilters.rvol?.startsWith("customRvol:") && styles.customInputActive]}
-                        placeholder="예: 2"
-                        placeholderTextColor={Colors.dark.textTertiary}
-                        keyboardType="decimal-pad"
-                        value={customRvolPct}
-                        onChangeText={(t) => {
-                          setCustomRvolPct(t);
-                          if (t) {
-                            setLocalFilters((prev) => ({ ...prev, rvol: `customRvol:${customRvolPeriod}:${t}` }));
-                          } else {
-                            setLocalFilters((prev) => ({ ...prev, rvol: null }));
-                          }
-                        }}
-                      />
-                      <Text style={styles.customInputUnit}>배 이상</Text>
-                    </View>
+                      );
+                    })}
                   </View>
                 </>
-              ) : detailCategory === "athDrop" || detailCategory === "atlRise" ? (
-                (() => {
-                  const isAth = detailCategory === "athDrop";
-                  const period = isAth ? athPeriod : atlPeriod;
-                  const setPeriod = isAth ? setAthPeriod : setAtlPeriod;
-                  const pct = isAth ? athPct : atlPct;
-                  const setPct = isAth ? setAthPct : setAtlPct;
-                  const dir = isAth ? athDir : atlDir;
-                  const setDir = isAth ? setAthDir : setAtlDir;
-                  const filterKey = isAth ? "athDrop" as const : "atlRise" as const;
-                  const quickItems = isAth
-                    ? [
-                        { label: "-10% 이내", pct: "10", dir: "under" as const, desc: "고점 근처" },
-                        { label: "-30% 이내", pct: "30", dir: "under" as const, desc: "소폭 조정" },
-                        { label: "-50% 이상", pct: "50", dir: "over" as const, desc: "상당한 하락" },
-                        { label: "-70% 이상", pct: "70", dir: "over" as const, desc: "바닥권" },
-                      ]
-                    : [
-                        { label: "+50% 이내", pct: "50", dir: "under" as const, desc: "저점 근처" },
-                        { label: "+200% 이상", pct: "200", dir: "over" as const, desc: "소폭 반등" },
-                        { label: "+500% 이상", pct: "500", dir: "over" as const, desc: "상당한 반등" },
-                        { label: "+1000% 이상", pct: "1000", dir: "over" as const, desc: "대폭 상승" },
-                      ];
-                  return (
-                    <>
-                      <Text style={styles.crSectionTitle}>기준 기간</Text>
-                      <View style={styles.customChipRow}>
-                        {([
-                          { key: "all", label: "전체" },
-                          { key: "y1", label: "1년" },
-                          { key: "m6", label: "6개월" },
-                          { key: "m3", label: "3개월" },
-                          { key: "m1", label: "1개월" },
-                        ] as const).map(p => (
-                          <Pressable
-                            key={p.key}
-                            onPress={() => {
-                              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                              setPeriod(p.key);
-                              if (pct) {
-                                setLocalFilters(prev => ({ ...prev, [filterKey]: `custom:${p.key}:${pct}:${dir}` }));
-                              }
-                            }}
-                            style={[styles.periodChip, period === p.key && styles.periodChipActive]}
-                          >
-                            <Text style={[styles.periodChipText, period === p.key && styles.periodChipTextActive]}>
-                              {p.label}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
+              ) : detailCategory === "fewAccount" ? (
+                <>
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      소수의 계정이 전체 거래량의 대부분을 차지하는 코인이에요.{"\n"}
+                      <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>가격 조작 위험</Text>이 있을 수 있어요
+                    </Text>
+                    <View style={{ marginTop: 10 }}>
+                      {[
+                        { label: "50%", pct: 50, color: Colors.dark.accent, badge: "주의" },
+                        { label: "75%", pct: 75, color: "#FF9800", badge: "경고" },
+                        { label: "90%", pct: 90, color: "#F44336", badge: "위험" },
+                      ].map((item, idx) => {
+                        const barWidth = item.pct;
+                        return (
+                          <View key={idx} style={styles.betaBarRow}>
+                            <Text style={[styles.betaBarLabel, { color: item.color }]}>{item.label}</Text>
+                            <View style={styles.betaBarTrack}>
+                              <View style={[styles.betaBarFill, {
+                                width: `${barWidth}%`,
+                                backgroundColor: `${item.color}99`,
+                              }]} />
+                            </View>
+                            <Text style={[styles.betaBarResult, { color: item.color }]}>{item.badge}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
 
-                      <Text style={[styles.crSectionTitle, { marginTop: 20 }]}>빠른 선택</Text>
-                      <View style={styles.crQuickGrid}>
-                        {quickItems.map(item => {
-                          const val = `custom:${period}:${item.pct}:${item.dir}`;
-                          const isActive = localFilters[filterKey] === val;
-                          return (
-                            <Pressable
-                              key={item.label}
-                              onPress={() => {
-                                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                                setPct(item.pct);
-                                setDir(item.dir);
-                                setLocalFilters(prev => ({
-                                  ...prev,
-                                  [filterKey]: prev[filterKey] === val ? null : val,
-                                }));
-                              }}
-                              style={[
-                                styles.crQuickChip,
-                                isAth
-                                  ? (item.dir === "under" ? styles.crQuickChipUp : styles.crQuickChipDown)
-                                  : (item.dir === "over" ? styles.crQuickChipUp : styles.crQuickChipDown),
-                                isActive && (isAth
-                                  ? (item.dir === "under" ? styles.crQuickChipUpActive : styles.crQuickChipDownActive)
-                                  : (item.dir === "over" ? styles.crQuickChipUpActive : styles.crQuickChipDownActive)),
-                              ]}
-                            >
-                              <Text style={[
-                                styles.crQuickChipText,
-                                isAth
-                                  ? (item.dir === "under" ? styles.crQuickChipTextUp : styles.crQuickChipTextDown)
-                                  : (item.dir === "over" ? styles.crQuickChipTextUp : styles.crQuickChipTextDown),
-                                isActive && styles.crQuickChipTextActive,
-                              ]}>
-                                {item.label}
-                              </Text>
-                              <Text style={[styles.crQuickChipDesc, isActive && styles.crQuickChipDescActive]}>
-                                {item.desc}
-                              </Text>
-                            </Pressable>
-                          );
-                        })}
-                      </View>
-
-                      <View style={styles.sectionDivider} />
-                      <Text style={styles.crSectionTitle}>직접 입력</Text>
-                      <View style={[styles.customInputRow, { marginTop: 8 }]}>
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>집중도 기준</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    {currentDetail.options.map(option => {
+                      const sel = localFilters.fewAccount === option.id;
+                      const color = option.id === "conc_50" ? Colors.dark.accent : option.id === "conc_75" ? "#FF9800" : "#F44336";
+                      return (
                         <Pressable
+                          key={option.id}
                           onPress={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                            const next = dir === "under" ? "over" : "under";
-                            setDir(next);
-                            if (pct) {
-                              setLocalFilters(prev => ({ ...prev, [filterKey]: `custom:${period}:${pct}:${next}` }));
-                            }
+                            toggleOption("fewAccount", option.id);
                           }}
-                          style={[styles.dirToggle, dir === "under" ? styles.dirToggleUp : styles.dirToggleDown]}
+                          style={[styles.betaDirBtn, sel && { borderColor: color, backgroundColor: `${color}18` }]}
                         >
-                          <Feather name={dir === "under" ? "chevrons-down" : "chevrons-up"} size={16} color={dir === "under" ? "#4CAF50" : "#F44336"} />
+                          <Text style={[styles.betaDirText, sel && { color }]}>{option.label}</Text>
                         </Pressable>
-                        <TextInput
-                          style={[styles.customInput, { flex: 1 }, localFilters[filterKey]?.startsWith("custom:") && styles.customInputActive]}
-                          placeholder="예: 30"
-                          placeholderTextColor={Colors.dark.textTertiary}
-                          keyboardType="decimal-pad"
-                          value={pct}
-                          onChangeText={(t) => {
-                            setPct(t);
-                            if (t) {
-                              setLocalFilters(prev => ({ ...prev, [filterKey]: `custom:${period}:${t}:${dir}` }));
-                            } else {
-                              setLocalFilters(prev => ({ ...prev, [filterKey]: null }));
-                            }
-                          }}
-                        />
-                        <Text style={styles.customInputUnit}>% {dir === "under" ? "이내" : "이상"}</Text>
-                      </View>
-                      {localFilters[filterKey] && (
-                        <View style={styles.crSummary}>
-                          <Feather name="info" size={13} color={Colors.dark.textTertiary} />
-                          <Text style={styles.crSummaryText}>
-                            {(() => {
-                              const pLabel = period === "all" ? "역대" : period === "y1" ? "1년" : period === "m6" ? "6개월" : period === "m3" ? "3개월" : "1개월";
-                              return isAth
-                                ? `${pLabel} 고점 대비 ${pct}% ${dir === "under" ? "이내로 하락" : "이상 하락"}한 코인`
-                                : `${pLabel} 저점 대비 ${pct}% ${dir === "over" ? "이상 상승" : "이내 상승"}한 코인`;
-                            })()}
-                          </Text>
+                      );
+                    })}
+                  </View>
+                </>
+              ) : detailCategory === "unrealizedPnl" ? (
+                <>
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      현재 가격 기준으로{"\n"}
+                      <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>수익 구간에 있는 보유자 비율</Text>을 확인해요
+                    </Text>
+                  </View>
+
+                  {currentDetail.options.map(option => (
+                    <FilterOptionRow
+                      key={option.id}
+                      option={option}
+                      isSelected={localFilters.unrealizedPnl === option.id}
+                      onPress={() => toggleOption("unrealizedPnl", option.id)}
+                    />
+                  ))}
+                </>
+              ) : detailCategory === "athDrop" ? (
+                <>
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      선택한 기간의 최고가 대비{"\n"}
+                      <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>지금 얼마나 떨어져 있는지</Text> 확인해요
+                    </Text>
+                    <View style={{ marginTop: 12, alignItems: "center" as const }}>
+                      <Svg width="100%" height={65} viewBox="0 0 200 65">
+                        {/* 고점 기준선 */}
+                        <Path d="M10,18 L190,18" stroke={Colors.dark.textTertiary} strokeWidth={1} strokeDasharray="4,3" fill="none" opacity={0.4} />
+                        {/* price line: was at high, dropped down */}
+                        <Path d="M10,20 Q50,19 80,18 Q100,18 120,25 Q150,38 180,48" stroke="#F44336" strokeWidth={2.5} fill="none" />
+                        {/* drop arrow */}
+                        <Path d="M150,22 L150,40" stroke="#F44336" strokeWidth={1.5} fill="none" opacity={0.6} />
+                        <Path d="M147,37 L150,42 L153,37" stroke="#F44336" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" fill="none" opacity={0.6} />
+                      </Svg>
+                      <View style={{ flexDirection: "row" as const, gap: 16, marginTop: 2 }}>
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                          <View style={{ width: 10, height: 2.5, backgroundColor: "#F44336", borderRadius: 1 }} />
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: Colors.dark.textSecondary }}>현재 가격</Text>
                         </View>
-                      )}
-                    </>
-                  );
-                })()
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                          <View style={{ width: 10, height: 1, backgroundColor: Colors.dark.textTertiary, borderRadius: 1 }} />
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: Colors.dark.textSecondary }}>고점</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>기준 기간</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    {([
+                      { key: "all", label: "전체" },
+                      { key: "y1", label: "1년" },
+                      { key: "m6", label: "6개월" },
+                      { key: "m3", label: "3개월" },
+                      { key: "m1", label: "1개월" },
+                    ] as const).map(p => (
+                      <Pressable
+                        key={p.key}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setAthPeriod(p.key);
+                          if (localFilters.athDrop) {
+                            if (athCustomMode) {
+                              setLocalFilters(prev => ({ ...prev, athDrop: `custom:${p.key}:${athRangeMin}:${athRangeMax}` }));
+                            } else if (athPct) {
+                              setLocalFilters(prev => ({ ...prev, athDrop: `custom:${p.key}:${athPct}:${athDir}` }));
+                            }
+                          }
+                        }}
+                        style={[styles.betaDirBtn, athPeriod === p.key && { borderColor: Colors.dark.accent, backgroundColor: "rgba(10,132,255,0.1)" }]}
+                      >
+                        <Text style={[styles.betaDirText, athPeriod === p.key && { color: Colors.dark.accent }]}>{p.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>하락폭</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    {[
+                      { id: "10", label: "10% 이내", dir: "under" as const },
+                      { id: "30", label: "30% 이내", dir: "under" as const },
+                      { id: "50", label: "50% 이상", dir: "over" as const },
+                    ].map(item => {
+                      const val = `custom:${athPeriod}:${item.id}:${item.dir}`;
+                      const isActive = !athCustomMode && localFilters.athDrop === val;
+                      return (
+                        <Pressable
+                          key={item.id}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setAthCustomMode(false);
+                            setAthPct(item.id);
+                            setAthDir(item.dir);
+                            setLocalFilters(prev => ({ ...prev, athDrop: prev.athDrop === val ? null : val }));
+                          }}
+                          style={[styles.betaDirBtn, isActive && { borderColor: Colors.dark.accent, backgroundColor: "rgba(10,132,255,0.1)" }]}
+                        >
+                          <Text style={[styles.betaDirText, isActive && { color: Colors.dark.accent }]}>{item.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setAthCustomMode(true);
+                        setLocalFilters(prev => ({ ...prev, athDrop: `custom:${athPeriod}:${athRangeMin}:${athRangeMax}` }));
+                      }}
+                      style={[styles.betaDirBtn, athCustomMode && { borderColor: Colors.dark.accent, backgroundColor: "rgba(10,132,255,0.1)" }]}
+                    >
+                      <Text style={[styles.betaDirText, athCustomMode && { color: Colors.dark.accent }]}>직접설정</Text>
+                    </Pressable>
+                  </View>
+                  {athCustomMode && (() => {
+                    const sliderMax = 100;
+                    const minRatio = athRangeMin / sliderMax;
+                    const maxRatio = athRangeMax / sliderMax;
+                    const handleAthSlider = (e: GestureResponderEvent, isGrant?: boolean) => {
+                      const x = Math.max(0, e.nativeEvent.locationX);
+                      const w = athSliderWidth.current || 200;
+                      const pct = Math.round(Math.min(1, Math.max(0, x / w)) * sliderMax);
+                      if (isGrant) {
+                        const distToMin = Math.abs(pct - athRangeMin);
+                        const distToMax = Math.abs(pct - athRangeMax);
+                        athDragThumb.current = distToMin <= distToMax ? "min" : "max";
+                      }
+                      let newMin = athRangeMin;
+                      let newMax = athRangeMax;
+                      if (athDragThumb.current === "min") {
+                        newMin = Math.min(pct, athRangeMax);
+                      } else {
+                        newMax = Math.max(pct, athRangeMin);
+                      }
+                      setAthRangeMin(newMin);
+                      setAthRangeMax(newMax);
+                      setLocalFilters(prev => ({ ...prev, athDrop: `custom:${athPeriod}:${newMin}:${newMax}` }));
+                    };
+                    return (
+                      <View style={{ marginTop: 12, backgroundColor: Colors.dark.surface, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 20 }}>
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginBottom: 14 }}>
+                          <View style={{ flex: 1, backgroundColor: Colors.dark.card, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+                            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.dark.text, textAlign: "center" as const }}>
+                              {athRangeMin}% 이상
+                            </Text>
+                          </View>
+                          <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>~</Text>
+                          <View style={{ flex: 1, backgroundColor: Colors.dark.card, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+                            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.dark.text, textAlign: "center" as const }}>
+                              {athRangeMax}% 이하
+                            </Text>
+                          </View>
+                        </View>
+                        <View
+                          onLayout={(ev: LayoutChangeEvent) => { athSliderWidth.current = ev.nativeEvent.layout.width; }}
+                          onStartShouldSetResponder={() => true}
+                          onMoveShouldSetResponder={() => true}
+                          onResponderGrant={(e: GestureResponderEvent) => handleAthSlider(e, true)}
+                          onResponderMove={(e: GestureResponderEvent) => handleAthSlider(e)}
+                          style={{ height: 40, justifyContent: "center" as const }}
+                        >
+                          <View style={{ height: 4, borderRadius: 2, backgroundColor: Colors.dark.card, position: "absolute" as const, left: 0, right: 0 }} />
+                          <View style={{ height: 4, borderRadius: 2, backgroundColor: Colors.dark.accent, position: "absolute" as const, left: `${minRatio * 100}%` as any, right: `${(1 - maxRatio) * 100}%` as any }} />
+                          <View style={{
+                            position: "absolute" as const, left: `${minRatio * 100}%` as any, marginLeft: -12,
+                            width: 24, height: 24, borderRadius: 12, backgroundColor: "#fff",
+                            shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 4,
+                          }} />
+                          <View style={{
+                            position: "absolute" as const, left: `${maxRatio * 100}%` as any, marginLeft: -12,
+                            width: 24, height: 24, borderRadius: 12, backgroundColor: "#fff",
+                            shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 4,
+                          }} />
+                        </View>
+                        <View style={{ flexDirection: "row" as const, justifyContent: "space-between" as const, marginTop: 4 }}>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>0%</Text>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>100%</Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
+                </>
+              ) : detailCategory === "atlRise" ? (
+                <>
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      선택한 기간의 최저가 대비{"\n"}
+                      <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>지금 얼마나 올라와 있는지</Text> 확인해요
+                    </Text>
+                    <View style={{ marginTop: 12, alignItems: "center" as const }}>
+                      <Svg width="100%" height={65} viewBox="0 0 200 65">
+                        {/* 저점 기준선 */}
+                        <Path d="M10,48 L190,48" stroke={Colors.dark.textTertiary} strokeWidth={1} strokeDasharray="4,3" fill="none" opacity={0.4} />
+                        {/* price line: was at low, rose up */}
+                        <Path d="M10,46 Q50,47 80,48 Q100,48 120,40 Q150,25 180,14" stroke="#4CAF50" strokeWidth={2.5} fill="none" />
+                        {/* rise arrow */}
+                        <Path d="M150,44 L150,26" stroke="#4CAF50" strokeWidth={1.5} fill="none" opacity={0.6} />
+                        <Path d="M147,29 L150,24 L153,29" stroke="#4CAF50" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round" fill="none" opacity={0.6} />
+                      </Svg>
+                      <View style={{ flexDirection: "row" as const, gap: 16, marginTop: 2 }}>
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                          <View style={{ width: 10, height: 2.5, backgroundColor: "#4CAF50", borderRadius: 1 }} />
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: Colors.dark.textSecondary }}>현재 가격</Text>
+                        </View>
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                          <View style={{ width: 10, height: 1, backgroundColor: Colors.dark.textTertiary, borderRadius: 1 }} />
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: Colors.dark.textSecondary }}>저점</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>기준 기간</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    {([
+                      { key: "all", label: "전체" },
+                      { key: "y1", label: "1년" },
+                      { key: "m6", label: "6개월" },
+                      { key: "m3", label: "3개월" },
+                      { key: "m1", label: "1개월" },
+                    ] as const).map(p => (
+                      <Pressable
+                        key={p.key}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setAtlPeriod(p.key);
+                          if (localFilters.atlRise) {
+                            if (atlCustomMode) {
+                              setLocalFilters(prev => ({ ...prev, atlRise: `custom:${p.key}:${atlRangeMin}:${atlRangeMax}` }));
+                            } else if (atlPct) {
+                              setLocalFilters(prev => ({ ...prev, atlRise: `custom:${p.key}:${atlPct}:${atlDir}` }));
+                            }
+                          }
+                        }}
+                        style={[styles.betaDirBtn, atlPeriod === p.key && { borderColor: Colors.dark.accent, backgroundColor: "rgba(10,132,255,0.1)" }]}
+                      >
+                        <Text style={[styles.betaDirText, atlPeriod === p.key && { color: Colors.dark.accent }]}>{p.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>상승폭</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    {[
+                      { id: "20", label: "20% 이내", dir: "under" as const },
+                      { id: "100", label: "100% 이상", dir: "over" as const },
+                    ].map(item => {
+                      const val = `custom:${atlPeriod}:${item.id}:${item.dir}`;
+                      const isActive = !atlCustomMode && localFilters.atlRise === val;
+                      return (
+                        <Pressable
+                          key={item.id}
+                          onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                            setAtlCustomMode(false);
+                            setAtlPct(item.id);
+                            setAtlDir(item.dir);
+                            setLocalFilters(prev => ({ ...prev, atlRise: prev.atlRise === val ? null : val }));
+                          }}
+                          style={[styles.betaDirBtn, isActive && { borderColor: Colors.dark.accent, backgroundColor: "rgba(10,132,255,0.1)" }]}
+                        >
+                          <Text style={[styles.betaDirText, isActive && { color: Colors.dark.accent }]}>{item.label}</Text>
+                        </Pressable>
+                      );
+                    })}
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setAtlCustomMode(true);
+                        setLocalFilters(prev => ({ ...prev, atlRise: `custom:${atlPeriod}:${atlRangeMin}:${atlRangeMax}` }));
+                      }}
+                      style={[styles.betaDirBtn, atlCustomMode && { borderColor: Colors.dark.accent, backgroundColor: "rgba(10,132,255,0.1)" }]}
+                    >
+                      <Text style={[styles.betaDirText, atlCustomMode && { color: Colors.dark.accent }]}>직접설정</Text>
+                    </Pressable>
+                  </View>
+                  {atlCustomMode && (() => {
+                    const sliderMax = 1000;
+                    const minRatio = atlRangeMin / sliderMax;
+                    const maxRatio = atlRangeMax / sliderMax;
+                    const handleAtlSlider = (e: GestureResponderEvent, isGrant?: boolean) => {
+                      const x = Math.max(0, e.nativeEvent.locationX);
+                      const w = atlSliderWidth.current || 200;
+                      const pct = Math.round(Math.min(1, Math.max(0, x / w)) * sliderMax);
+                      if (isGrant) {
+                        const distToMin = Math.abs(pct - atlRangeMin);
+                        const distToMax = Math.abs(pct - atlRangeMax);
+                        atlDragThumb.current = distToMin <= distToMax ? "min" : "max";
+                      }
+                      let newMin = atlRangeMin;
+                      let newMax = atlRangeMax;
+                      if (atlDragThumb.current === "min") {
+                        newMin = Math.min(pct, atlRangeMax);
+                      } else {
+                        newMax = Math.max(pct, atlRangeMin);
+                      }
+                      setAtlRangeMin(newMin);
+                      setAtlRangeMax(newMax);
+                      setLocalFilters(prev => ({ ...prev, atlRise: `custom:${atlPeriod}:${newMin}:${newMax}` }));
+                    };
+                    return (
+                      <View style={{ marginTop: 12, backgroundColor: Colors.dark.surface, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 20 }}>
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, justifyContent: "center" as const, gap: 8, marginBottom: 14 }}>
+                          <View style={{ flex: 1, backgroundColor: Colors.dark.card, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+                            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.dark.text, textAlign: "center" as const }}>
+                              {atlRangeMin}% 이상
+                            </Text>
+                          </View>
+                          <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>~</Text>
+                          <View style={{ flex: 1, backgroundColor: Colors.dark.card, borderRadius: 8, paddingVertical: 8, paddingHorizontal: 12 }}>
+                            <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: Colors.dark.text, textAlign: "center" as const }}>
+                              {atlRangeMax}% 이하
+                            </Text>
+                          </View>
+                        </View>
+                        <View
+                          onLayout={(ev: LayoutChangeEvent) => { atlSliderWidth.current = ev.nativeEvent.layout.width; }}
+                          onStartShouldSetResponder={() => true}
+                          onMoveShouldSetResponder={() => true}
+                          onResponderGrant={(e: GestureResponderEvent) => handleAtlSlider(e, true)}
+                          onResponderMove={(e: GestureResponderEvent) => handleAtlSlider(e)}
+                          style={{ height: 40, justifyContent: "center" as const }}
+                        >
+                          <View style={{ height: 4, borderRadius: 2, backgroundColor: Colors.dark.card, position: "absolute" as const, left: 0, right: 0 }} />
+                          <View style={{ height: 4, borderRadius: 2, backgroundColor: Colors.dark.accent, position: "absolute" as const, left: `${minRatio * 100}%` as any, right: `${(1 - maxRatio) * 100}%` as any }} />
+                          <View style={{
+                            position: "absolute" as const, left: `${minRatio * 100}%` as any, marginLeft: -12,
+                            width: 24, height: 24, borderRadius: 12, backgroundColor: "#fff",
+                            shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 4,
+                          }} />
+                          <View style={{
+                            position: "absolute" as const, left: `${maxRatio * 100}%` as any, marginLeft: -12,
+                            width: 24, height: 24, borderRadius: 12, backgroundColor: "#fff",
+                            shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 4,
+                          }} />
+                        </View>
+                        <View style={{ flexDirection: "row" as const, justifyContent: "space-between" as const, marginTop: 4 }}>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>0%</Text>
+                          <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: Colors.dark.textTertiary }}>{sliderMax}%</Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
+                </>
+              ) : detailCategory === "newHighLow" ? (
+                <>
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      선택한 기간 내에서{"\n"}
+                      <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>최고가 또는 최저가를 갱신한 코인</Text>을 찾아요
+                    </Text>
+                    <View style={{ marginTop: 12, alignItems: "center" as const }}>
+                      <Svg width="100%" height={65} viewBox="0 0 200 65">
+                        {/* previous high dotted line */}
+                        <Path d="M10,22 L190,22" stroke={Colors.dark.textTertiary} strokeWidth={1} strokeDasharray="4,3" fill="none" opacity={0.4} />
+                        {/* price line going up and breaking through */}
+                        <Path d="M10,50 Q40,45 70,38 Q100,28 120,22 Q140,14 170,8" stroke="#4CAF50" strokeWidth={2.5} fill="none" />
+                        {/* breakout marker */}
+                        <Path d="M120,22 L120,16" stroke="#FFC107" strokeWidth={2.5} strokeLinecap="round" fill="none" />
+                        <Path d="M116,19 L120,14 L124,19" stroke="#FFC107" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" fill="none" />
+                      </Svg>
+                      <View style={{ flexDirection: "row" as const, gap: 16, marginTop: 2 }}>
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                          <View style={{ width: 10, height: 2.5, backgroundColor: "#4CAF50", borderRadius: 1 }} />
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: Colors.dark.textSecondary }}>가격</Text>
+                        </View>
+                        <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                          <View style={{ width: 10, height: 1, backgroundColor: Colors.dark.textTertiary, borderRadius: 1 }} />
+                          <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: Colors.dark.textSecondary }}>이전 고점</Text>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>신호 선택</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setNewHLType("high");
+                        setLocalFilters(prev => ({ ...prev, newHighLow: `high_${newHLPeriod}` }));
+                      }}
+                      style={[styles.betaDirBtn, newHLType === "high" && { borderColor: "#4CAF50", backgroundColor: "rgba(76,175,80,0.1)" }]}
+                    >
+                      <Feather name="trending-up" size={16} color={newHLType === "high" ? "#4CAF50" : Colors.dark.textTertiary} />
+                      <Text style={[styles.betaDirText, newHLType === "high" && { color: "#4CAF50" }]}>신고가</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setNewHLType("low");
+                        setLocalFilters(prev => ({ ...prev, newHighLow: `low_${newHLPeriod}` }));
+                      }}
+                      style={[styles.betaDirBtn, newHLType === "low" && { borderColor: "#F44336", backgroundColor: "rgba(244,67,54,0.1)" }]}
+                    >
+                      <Feather name="trending-down" size={16} color={newHLType === "low" ? "#F44336" : Colors.dark.textTertiary} />
+                      <Text style={[styles.betaDirText, newHLType === "low" && { color: "#F44336" }]}>신저가</Text>
+                    </Pressable>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>기간</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    {[
+                      { id: "7", label: "7일 이내" },
+                      { id: "30", label: "30일 이내" },
+                      { id: "90", label: "90일 이내" },
+                    ].map(p => (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setNewHLPeriod(p.id);
+                          setLocalFilters(prev => ({ ...prev, newHighLow: `${newHLType}_${p.id}` }));
+                        }}
+                        style={[styles.betaDirBtn, newHLPeriod === p.id && { borderColor: Colors.dark.accent, backgroundColor: "rgba(10,132,255,0.1)" }]}
+                      >
+                        <Text style={[styles.betaDirText, newHLPeriod === p.id && { color: Colors.dark.accent }]}>{p.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </>
               ) : detailCategory === "streakUp" || detailCategory === "streakDown" ? (
                 <>
                   <Text style={styles.streakSubtitle}>어제 종가 기준</Text>
@@ -816,45 +1474,35 @@ export default function CoinFilterSheet({
                 </>
               ) : detailCategory === "rsi" ? (
                 <>
-                  <View style={styles.taGaugeContainer}>
-                    <View style={styles.taGaugeBar}>
-                      <View style={[styles.taGaugeSegment, { flex: 3, backgroundColor: "rgba(76,175,80,0.35)", borderTopLeftRadius: 6, borderBottomLeftRadius: 6 }]} />
-                      <View style={[styles.taGaugeSegment, { flex: 2, backgroundColor: "rgba(76,175,80,0.15)" }]} />
-                      <View style={[styles.taGaugeSegment, { flex: 2, backgroundColor: "rgba(255,255,255,0.06)" }]} />
-                      <View style={[styles.taGaugeSegment, { flex: 2, backgroundColor: "rgba(244,67,54,0.15)" }]} />
-                      <View style={[styles.taGaugeSegment, { flex: 1, backgroundColor: "rgba(244,67,54,0.35)", borderTopRightRadius: 6, borderBottomRightRadius: 6 }]} />
-                    </View>
-                    <View style={styles.taGaugeLabels}>
-                      <Text style={[styles.taGaugeLabel, { color: "#4CAF50" }]}>0</Text>
-                      <Text style={[styles.taGaugeLabel, { color: "#4CAF50" }]}>30</Text>
-                      <Text style={styles.taGaugeLabel}>50</Text>
-                      <Text style={[styles.taGaugeLabel, { color: "#F44336" }]}>70</Text>
-                      <Text style={[styles.taGaugeLabel, { color: "#F44336" }]}>100</Text>
-                    </View>
-                    <View style={styles.taGaugeLabelRow}>
-                      <Text style={[styles.taGaugeZone, { color: "#4CAF50" }]}>과매도</Text>
-                      <Text style={styles.taGaugeZone}>중립</Text>
-                      <Text style={[styles.taGaugeZone, { color: "#F44336" }]}>과매수</Text>
-                    </View>
-                  </View>
-
                   <View style={styles.taInfoCard}>
                     <Text style={styles.taInfoText}>
-                      최근 가격 흐름의 <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>과열/침체 정도</Text>를 수치로 보여줘요
+                      최근에 너무 많이 올랐거나 빠졌을까?{"\n"}
+                      <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>가격 과열/침체 정도</Text>를 0~100 숫자로 보여줘요
                     </Text>
-                    <View style={styles.taInfoRow}>
-                      <View style={[styles.taInfoBadge, { backgroundColor: "rgba(76,175,80,0.12)" }]}>
-                        <Feather name="arrow-down-circle" size={13} color="#4CAF50" />
-                        <Text style={[styles.taInfoBadgeText, { color: "#4CAF50" }]}>30 이하 → 과매도 구간 (반등 가능성)</Text>
+                    <View style={{ marginTop: 10 }}>
+                      <View style={styles.taGaugeBar}>
+                        <View style={[styles.taGaugeSegment, { flex: 3, backgroundColor: "rgba(76,175,80,0.35)", borderTopLeftRadius: 6, borderBottomLeftRadius: 6 }]} />
+                        <View style={[styles.taGaugeSegment, { flex: 2, backgroundColor: "rgba(76,175,80,0.15)" }]} />
+                        <View style={[styles.taGaugeSegment, { flex: 2, backgroundColor: "rgba(255,255,255,0.06)" }]} />
+                        <View style={[styles.taGaugeSegment, { flex: 2, backgroundColor: "rgba(244,67,54,0.15)" }]} />
+                        <View style={[styles.taGaugeSegment, { flex: 1, backgroundColor: "rgba(244,67,54,0.35)", borderTopRightRadius: 6, borderBottomRightRadius: 6 }]} />
                       </View>
-                      <View style={[styles.taInfoBadge, { backgroundColor: "rgba(244,67,54,0.12)" }]}>
-                        <Feather name="arrow-up-circle" size={13} color="#F44336" />
-                        <Text style={[styles.taInfoBadgeText, { color: "#F44336" }]}>70 이상 → 과매수 구간 (조정 가능성)</Text>
+                      <View style={styles.taGaugeLabels}>
+                        <Text style={[styles.taGaugeLabel, { color: "#4CAF50" }]}>0</Text>
+                        <Text style={[styles.taGaugeLabel, { color: "#4CAF50" }]}>30</Text>
+                        <Text style={styles.taGaugeLabel}>50</Text>
+                        <Text style={[styles.taGaugeLabel, { color: "#F44336" }]}>70</Text>
+                        <Text style={[styles.taGaugeLabel, { color: "#F44336" }]}>100</Text>
+                      </View>
+                      <View style={styles.taGaugeLabelRow}>
+                        <Text style={[styles.taGaugeZone, { color: "#4CAF50" }]}>과매도</Text>
+                        <Text style={styles.taGaugeZone}>중립</Text>
+                        <Text style={[styles.taGaugeZone, { color: "#F44336" }]}>과매수</Text>
                       </View>
                     </View>
                   </View>
 
-                  <View style={styles.taSectionHeader}>
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
                     <Text style={styles.taSectionTitle}>캔들 기간</Text>
                     <Text style={styles.taSectionDesc}>어떤 기간의 가격 흐름을 볼까요?</Text>
                   </View>
@@ -889,13 +1537,13 @@ export default function CoinFilterSheet({
                     </Text>
                   </View>
 
-                  <View style={styles.taSectionHeader}>
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
                     <Text style={styles.taSectionTitle}>상태 선택</Text>
                   </View>
-                  <View style={styles.taChipGrid}>
+                  <View style={styles.betaDirRow}>
                     {currentDetail.options.map(option => {
                       const sel = localFilters.rsi === option.id;
-                      const color = option.id === "oversold" ? "#4CAF50" : option.id === "weak" ? "#66BB6A" : option.id === "neutral" ? "#78909C" : option.id === "strong" ? "#FF7043" : "#F44336";
+                      const color = option.id === "oversold" ? "#4CAF50" : option.id === "neutral" ? "#78909C" : "#F44336";
                       return (
                         <Pressable
                           key={option.id}
@@ -903,122 +1551,60 @@ export default function CoinFilterSheet({
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                             toggleOption("rsi", option.id);
                           }}
-                          style={[styles.taChip, sel && { borderColor: color, backgroundColor: `${color}18` }]}
+                          style={[styles.betaDirBtn, sel && { borderColor: color, backgroundColor: `${color}18` }]}
                         >
-                          <View style={[styles.taChipDot, { backgroundColor: color }]} />
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.taChipLabel, sel && { color: Colors.dark.text }]}>{option.label}</Text>
-                            {option.description && <Text style={[styles.taChipDesc, sel && { color: Colors.dark.textSecondary }]}>{option.description}</Text>}
-                          </View>
-                          {sel && <Feather name="check" size={16} color={color} />}
+                          <Text style={[styles.betaDirText, sel && { color }]}>{option.label}</Text>
+                          <Text style={styles.betaDirDesc}>{option.description}</Text>
                         </Pressable>
                       );
                     })}
                   </View>
 
-                  <View style={styles.sectionDivider} />
-                  <View style={styles.taSectionHeader}>
-                    <Text style={styles.taSectionTitle}>직접 설정</Text>
-                    <Text style={styles.taSectionDesc}>RSI 범위를 직접 입력 (0~100)</Text>
-                  </View>
-                  <View style={styles.taCustomRow}>
-                    <TextInput
-                      style={[styles.taCustomInput, localFilters.rsi?.startsWith("custom:") && styles.taCustomInputActive]}
-                      placeholder="최소"
-                      placeholderTextColor={Colors.dark.textTertiary}
-                      keyboardType="decimal-pad"
-                      value={customRsiMin}
-                      onChangeText={setCustomRsiMin}
-                    />
-                    <View style={styles.taCustomSep}><Text style={styles.taCustomSepText}>~</Text></View>
-                    <TextInput
-                      style={[styles.taCustomInput, localFilters.rsi?.startsWith("custom:") && styles.taCustomInputActive]}
-                      placeholder="최대"
-                      placeholderTextColor={Colors.dark.textTertiary}
-                      keyboardType="decimal-pad"
-                      value={customRsiMax}
-                      onChangeText={setCustomRsiMax}
-                    />
-                    <Pressable
-                      onPress={() => {
-                        if (customRsiMin && customRsiMax) {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setLocalFilters(prev => ({ ...prev, rsi: `custom:${customRsiMin}:${customRsiMax}` }));
-                        }
-                      }}
-                      style={[styles.taCustomApply, (!customRsiMin || !customRsiMax) && { opacity: 0.3 }]}
-                    >
-                      <Text style={styles.taCustomApplyText}>적용</Text>
-                    </Pressable>
-                  </View>
-                  {localFilters.rsi && (
-                    <View style={styles.crSummary}>
-                      <Feather name="check-circle" size={13} color={Colors.dark.accent} />
-                      <Text style={styles.crSummaryText}>
-                        {localFilters.rsi.startsWith("custom:")
-                          ? `RSI ${customRsiMin}~${customRsiMax} 범위 (${rsiPeriod}일 기준)`
-                          : `${currentDetail.options.find(o => o.id === localFilters.rsi)?.label ?? ""} (${rsiPeriod}일 기준)`}
-                      </Text>
-                    </View>
-                  )}
                 </>
               ) : detailCategory === "beta" ? (
                 <>
-                  <View style={styles.taGaugeContainer}>
-                    <View style={styles.taGaugeBar}>
-                      <View style={[styles.taGaugeSegment, { flex: 1, backgroundColor: "rgba(168,85,247,0.4)", borderTopLeftRadius: 6, borderBottomLeftRadius: 6 }]} />
-                      <View style={[styles.taGaugeSegment, { flex: 1, backgroundColor: "rgba(247,147,26,0.2)" }]} />
-                      <View style={[styles.taGaugeSegment, { flex: 1, backgroundColor: "rgba(255,255,255,0.06)" }]} />
-                      <View style={[styles.taGaugeSegment, { flex: 1, backgroundColor: "rgba(244,67,54,0.35)", borderTopRightRadius: 6, borderBottomRightRadius: 6 }]} />
-                    </View>
-                    <View style={styles.taGaugeLabels}>
-                      <Text style={[styles.taGaugeLabel, { color: "#A855F7" }]}>-1</Text>
-                      <Text style={[styles.taGaugeLabel, { color: Colors.dark.accent }]}>0</Text>
-                      <Text style={styles.taGaugeLabel}>0.8</Text>
-                      <Text style={styles.taGaugeLabel}>1.2</Text>
-                      <Text style={[styles.taGaugeLabel, { color: "#F44336" }]}>2.0+</Text>
-                    </View>
-                    <View style={styles.taGaugeLabelRow}>
-                      <Text style={[styles.taGaugeZone, { color: "#A855F7" }]}>역방향</Text>
-                      <Text style={[styles.taGaugeZone, { color: Colors.dark.accent }]}>저변동</Text>
-                      <Text style={styles.taGaugeZone}>유사</Text>
-                      <Text style={[styles.taGaugeZone, { color: "#F44336" }]}>고변동</Text>
-                    </View>
-                  </View>
-
                   <View style={styles.taInfoCard}>
                     <Text style={styles.taInfoText}>
                       비트코인이 오르면 이 코인도 오를까?{"\n"}
                       <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>얼마나 같이 움직이는지</Text> 숫자로 보여줘요
                     </Text>
-                    <View style={styles.taExampleRow}>
-                      <Text style={styles.taExampleLabel}>BTC가 +10% 오르면?</Text>
-                    </View>
-                    <View style={styles.betaExampleGrid}>
-                      <View style={styles.betaExampleItem}>
-                        <Text style={[styles.betaExampleValue, { color: "#78909C" }]}>β 0.5</Text>
-                        <Text style={[styles.betaExampleResult, { color: "#4CAF50" }]}>+5%</Text>
-                      </View>
-                      <View style={styles.betaExampleItem}>
-                        <Text style={[styles.betaExampleValue, { color: Colors.dark.accent }]}>β 1.0</Text>
-                        <Text style={[styles.betaExampleResult, { color: "#4CAF50" }]}>+10%</Text>
-                      </View>
-                      <View style={styles.betaExampleItem}>
-                        <Text style={[styles.betaExampleValue, { color: "#F44336" }]}>β 3.0</Text>
-                        <Text style={[styles.betaExampleResult, { color: "#4CAF50" }]}>+30%</Text>
-                      </View>
-                      <View style={styles.betaExampleItem}>
-                        <Text style={[styles.betaExampleValue, { color: "#A855F7" }]}>β -0.4</Text>
-                        <Text style={[styles.betaExampleResult, { color: "#F44336" }]}>-4%</Text>
-                      </View>
-                      <View style={styles.betaExampleItem}>
-                        <Text style={[styles.betaExampleValue, { color: "#7C3AED" }]}>β -3.0</Text>
-                        <Text style={[styles.betaExampleResult, { color: "#F44336" }]}>-30%</Text>
-                      </View>
-                    </View>
+                    <View style={{ marginBottom: 4 }} />
+                    {[
+                      { label: "BTC", beta: 1.0, result: "+10%", color: Colors.dark.textSecondary, barColor: "rgba(255,255,255,0.15)", isBtc: true },
+                      { label: "β 0.5", beta: 0.5, result: "+5%", color: "#78909C", barColor: "#78909C" },
+                      { label: "β 1.0", beta: 1.0, result: "+10%", color: Colors.dark.accent, barColor: Colors.dark.accent },
+                      { label: "β 2.0", beta: 2.0, result: "+20%", color: "#F44336", barColor: "#F44336" },
+                      { label: "β -0.5", beta: -0.5, result: "-5%", color: "#A855F7", barColor: "#A855F7" },
+                      { label: "β -2.0", beta: -2.0, result: "-20%", color: "#7C3AED", barColor: "#7C3AED" },
+                    ].map((item, idx) => {
+                      const barWidth = Math.min(Math.abs(item.beta) / 2.0, 1) * 100;
+                      const isNeg = item.beta < 0;
+                      return (
+                        <View key={idx} style={styles.betaBarRow}>
+                          <Text style={[styles.betaBarLabel, { color: item.color }]}>{item.label}</Text>
+                          <View style={styles.betaBarTrack}>
+                            {item.isBtc ? (
+                              <View style={[styles.betaBarFill, {
+                                width: `${barWidth}%`,
+                                backgroundColor: "transparent",
+                                borderWidth: 1.5,
+                                borderColor: Colors.dark.textTertiary,
+                                borderStyle: "dashed" as const,
+                              }]} />
+                            ) : (
+                              <View style={[styles.betaBarFill, {
+                                width: `${barWidth}%`,
+                                backgroundColor: `${item.barColor}99`,
+                              }]} />
+                            )}
+                          </View>
+                          <Text style={[styles.betaBarResult, { color: isNeg ? "#F44336" : item.isBtc ? Colors.dark.textSecondary : "#4CAF50" }]}>{item.result}</Text>
+                        </View>
+                      );
+                    })}
                   </View>
 
-                  <View style={styles.taSectionHeader}>
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
                     <Text style={styles.taSectionTitle}>방향 선택</Text>
                   </View>
                   <View style={styles.betaDirRow}>
@@ -1046,17 +1632,23 @@ export default function CoinFilterSheet({
                     </Pressable>
                   </View>
 
-                  <View style={styles.taSectionHeader}>
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
                     <Text style={styles.taSectionTitle}>변동 크기</Text>
                   </View>
-                  <View style={styles.taChipGrid}>
+                  <View style={styles.betaDirRow}>
                     {currentDetail.options
                       .filter(o => betaDir === "same" ? o.id.startsWith("same_") : o.id.startsWith("opp_"))
                       .map(option => {
                       const sel = localFilters.beta === option.id;
-                      const color = betaDir === "same"
-                        ? (option.id === "same_mid" ? Colors.dark.accent : "#F44336")
-                        : (option.id === "opp_mid" ? "#A855F7" : "#7C3AED");
+                      const colorMap: Record<string, string> = {
+                        same_low: "#78909C",
+                        same_mid: Colors.dark.accent,
+                        same_high: "#F44336",
+                        opp_low: "#78909C",
+                        opp_mid: "#A855F7",
+                        opp_high: "#7C3AED",
+                      };
+                      const color = colorMap[option.id] ?? Colors.dark.accent;
                       return (
                         <Pressable
                           key={option.id}
@@ -1064,64 +1656,263 @@ export default function CoinFilterSheet({
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                             toggleOption("beta", option.id);
                           }}
-                          style={[styles.taChip, sel && { borderColor: color, backgroundColor: `${color}18` }]}
+                          style={[styles.betaDirBtn, sel && { borderColor: color, backgroundColor: `${color}18` }]}
                         >
-                          <View style={[styles.taChipDot, { backgroundColor: color }]} />
-                          <View style={{ flex: 1 }}>
-                            <Text style={[styles.taChipLabel, sel && { color: Colors.dark.text }]}>{option.label}</Text>
-                            {option.description && <Text style={[styles.taChipDesc, sel && { color: Colors.dark.textSecondary }]}>{option.description}</Text>}
-                          </View>
-                          {sel && <Feather name="check" size={16} color={color} />}
+                          <Text style={[styles.betaDirText, sel && { color }]}>{option.label}</Text>
+                          <Text style={styles.betaDirDesc}>{option.description}</Text>
                         </Pressable>
                       );
                     })}
                   </View>
 
-                  <View style={styles.sectionDivider} />
-                  <View style={styles.taSectionHeader}>
-                    <Text style={styles.taSectionTitle}>직접 설정</Text>
-                    <Text style={styles.taSectionDesc}>베타 범위를 직접 입력 (음수 가능)</Text>
+                </>
+              ) : detailCategory === "maAlign" ? (
+                <>
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      단기·중기·장기 이동평균선의 순서로{"\n"}
+                      <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>지금 상승 추세인지 하락 추세인지</Text> 알 수 있어요
+                    </Text>
+                    <View style={{ marginTop: 12, flexDirection: "row" as const, gap: 12 }}>
+                      {/* 정배열 mini chart */}
+                      <View style={{ flex: 1, alignItems: "center" as const }}>
+                        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#4CAF50", marginBottom: 6 }}>정배열 (상승추세)</Text>
+                        <Svg width="100%" height={60} viewBox="0 0 120 60">
+                          <Path d="M10,45 Q40,44 60,42 Q80,38 110,30" stroke="#9C27B0" strokeWidth={2} fill="none" />
+                          <Path d="M10,40 Q40,36 60,30 Q80,22 110,18" stroke="#FF9800" strokeWidth={2} fill="none" />
+                          <Path d="M10,35 Q40,28 60,20 Q80,12 110,8" stroke="#4CAF50" strokeWidth={2.5} fill="none" />
+                        </Svg>
+                        <View style={{ flexDirection: "row" as const, gap: 10, marginTop: 4 }}>
+                          <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                            <View style={{ width: 10, height: 2.5, backgroundColor: "#4CAF50", borderRadius: 1 }} />
+                            <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: "#4CAF50" }}>단기</Text>
+                          </View>
+                          <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                            <View style={{ width: 10, height: 2, backgroundColor: "#FF9800", borderRadius: 1 }} />
+                            <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: "#FF9800" }}>중기</Text>
+                          </View>
+                          <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                            <View style={{ width: 10, height: 2, backgroundColor: "#9C27B0", borderRadius: 1 }} />
+                            <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: "#9C27B0" }}>장기</Text>
+                          </View>
+                        </View>
+                      </View>
+                      {/* 역배열 mini chart */}
+                      <View style={{ flex: 1, alignItems: "center" as const }}>
+                        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#F44336", marginBottom: 6 }}>역배열 (하락추세)</Text>
+                        <Svg width="100%" height={60} viewBox="0 0 120 60">
+                          <Path d="M10,15 Q40,16 60,18 Q80,22 110,30" stroke="#9C27B0" strokeWidth={2} fill="none" />
+                          <Path d="M10,20 Q40,24 60,30 Q80,38 110,42" stroke="#FF9800" strokeWidth={2} fill="none" />
+                          <Path d="M10,25 Q40,32 60,40 Q80,48 110,52" stroke="#4CAF50" strokeWidth={2.5} fill="none" />
+                        </Svg>
+                        <View style={{ flexDirection: "row" as const, gap: 10, marginTop: 4 }}>
+                          <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                            <View style={{ width: 10, height: 2.5, backgroundColor: "#4CAF50", borderRadius: 1 }} />
+                            <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: "#4CAF50" }}>단기</Text>
+                          </View>
+                          <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                            <View style={{ width: 10, height: 2, backgroundColor: "#FF9800", borderRadius: 1 }} />
+                            <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: "#FF9800" }}>중기</Text>
+                          </View>
+                          <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                            <View style={{ width: 10, height: 2, backgroundColor: "#9C27B0", borderRadius: 1 }} />
+                            <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: "#9C27B0" }}>장기</Text>
+                          </View>
+                        </View>
+                      </View>
+                    </View>
                   </View>
-                  <View style={styles.taCustomRow}>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>이평선 설정</Text>
+                  </View>
+                  <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 6 }}>
                     <TextInput
-                      style={[styles.taCustomInput, localFilters.beta?.startsWith("custom:") && styles.taCustomInputActive]}
-                      placeholder="최소"
+                      style={[styles.taCustomInput, { width: 48, textAlign: "center" as const, paddingHorizontal: 4 }]}
+                      keyboardType="number-pad"
+                      value={maShort}
+                      onChangeText={setMaShort}
+                      placeholder="5"
                       placeholderTextColor={Colors.dark.textTertiary}
-                      keyboardType="numbers-and-punctuation"
-                      value={customBetaMin}
-                      onChangeText={setCustomBetaMin}
                     />
-                    <View style={styles.taCustomSep}><Text style={styles.taCustomSepText}>~</Text></View>
+                    <Text style={{ fontSize: 13, color: Colors.dark.textTertiary }}>-</Text>
                     <TextInput
-                      style={[styles.taCustomInput, localFilters.beta?.startsWith("custom:") && styles.taCustomInputActive]}
-                      placeholder="최대"
+                      style={[styles.taCustomInput, { width: 48, textAlign: "center" as const, paddingHorizontal: 4 }]}
+                      keyboardType="number-pad"
+                      value={maMid}
+                      onChangeText={setMaMid}
+                      placeholder="20"
                       placeholderTextColor={Colors.dark.textTertiary}
-                      keyboardType="numbers-and-punctuation"
-                      value={customBetaMax}
-                      onChangeText={setCustomBetaMax}
                     />
+                    <Text style={{ fontSize: 13, color: Colors.dark.textTertiary }}>-</Text>
+                    <TextInput
+                      style={[styles.taCustomInput, { width: 48, textAlign: "center" as const, paddingHorizontal: 4 }]}
+                      keyboardType="number-pad"
+                      value={maLong}
+                      onChangeText={setMaLong}
+                      placeholder="60"
+                      placeholderTextColor={Colors.dark.textTertiary}
+                    />
+                    <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.dark.textSecondary }}>일 이동평균선</Text>
+                  </View>
+                  <View style={styles.taHintCard}>
+                    <Feather name="info" size={12} color={Colors.dark.textTertiary} />
+                    <Text style={styles.taHintText}>5·20·60이 가장 일반적이에요. 더 긴 추세를 보려면 10·50·200을 추천해요.</Text>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>추세 방향</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
                     <Pressable
                       onPress={() => {
-                        if (customBetaMin && customBetaMax) {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          setLocalFilters(prev => ({ ...prev, beta: `custom:${customBetaMin}:${customBetaMax}` }));
-                        }
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setMaAlignDir("golden");
+                        setLocalFilters(prev => ({ ...prev, maAlign: `golden_${maShort}_${maMid}_${maLong}` }));
                       }}
-                      style={[styles.taCustomApply, (!customBetaMin || !customBetaMax) && { opacity: 0.3 }]}
+                      style={[styles.betaDirBtn, maAlignDir === "golden" && { borderColor: "#4CAF50", backgroundColor: "rgba(76,175,80,0.1)" }]}
                     >
-                      <Text style={styles.taCustomApplyText}>적용</Text>
+                      <Feather name="trending-up" size={16} color={maAlignDir === "golden" ? "#4CAF50" : Colors.dark.textTertiary} />
+                      <Text style={[styles.betaDirText, maAlignDir === "golden" && { color: "#4CAF50" }]}>정배열</Text>
+                      <Text style={styles.betaDirDesc}>상승 추세</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setMaAlignDir("death");
+                        setLocalFilters(prev => ({ ...prev, maAlign: `death_${maShort}_${maMid}_${maLong}` }));
+                      }}
+                      style={[styles.betaDirBtn, maAlignDir === "death" && { borderColor: "#F44336", backgroundColor: "rgba(244,67,54,0.1)" }]}
+                    >
+                      <Feather name="trending-down" size={16} color={maAlignDir === "death" ? "#F44336" : Colors.dark.textTertiary} />
+                      <Text style={[styles.betaDirText, maAlignDir === "death" && { color: "#F44336" }]}>역배열</Text>
+                      <Text style={styles.betaDirDesc}>하락 추세</Text>
                     </Pressable>
                   </View>
-                  {localFilters.beta && (
-                    <View style={styles.crSummary}>
-                      <Feather name="check-circle" size={13} color={Colors.dark.accent} />
-                      <Text style={styles.crSummaryText}>
-                        {localFilters.beta.startsWith("custom:")
-                          ? `베타 ${customBetaMin}~${customBetaMax} 범위의 코인`
-                          : `${currentDetail.options.find(o => o.id === localFilters.beta)?.label ?? ""} 코인`}
-                      </Text>
+                </>
+              ) : detailCategory === "maCross" ? (
+                <>
+                  <View style={styles.taInfoCard}>
+                    <Text style={styles.taInfoText}>
+                      단기 이평선이 장기 이평선을 뚫고 지나가면{"\n"}
+                      <Text style={{ color: Colors.dark.text, fontFamily: "Inter_600SemiBold" }}>추세가 바뀌는 신호</Text>로 볼 수 있어요
+                    </Text>
+                    <View style={{ marginTop: 12, flexDirection: "row" as const, gap: 12 }}>
+                      {/* 골든크로스 mini chart */}
+                      <View style={{ flex: 1, alignItems: "center" as const }}>
+                        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#4CAF50", marginBottom: 6 }}>골든크로스</Text>
+                        <Svg width="100%" height={60} viewBox="0 0 120 60">
+                          <Path d="M10,20 Q40,28 60,35 Q80,42 110,48" stroke="#9C27B0" strokeWidth={2} fill="none" opacity={0.6} />
+                          <Path d="M10,50 Q40,42 60,35 Q80,22 110,12" stroke="#4CAF50" strokeWidth={2.5} fill="none" />
+                          {/* cross point */}
+                          <Path d="M58,35 L62,35" stroke="#FFC107" strokeWidth={4} fill="none" strokeLinecap="round" />
+                        </Svg>
+                        <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: "#4CAF50", marginTop: 2 }}>상승 전환</Text>
+                      </View>
+                      {/* 데드크로스 mini chart */}
+                      <View style={{ flex: 1, alignItems: "center" as const }}>
+                        <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#F44336", marginBottom: 6 }}>데드크로스</Text>
+                        <Svg width="100%" height={60} viewBox="0 0 120 60">
+                          <Path d="M10,48 Q40,40 60,32 Q80,22 110,15" stroke="#9C27B0" strokeWidth={2} fill="none" opacity={0.6} />
+                          <Path d="M10,12 Q40,22 60,32 Q80,42 110,50" stroke="#4CAF50" strokeWidth={2.5} fill="none" />
+                          {/* cross point */}
+                          <Path d="M58,32 L62,32" stroke="#FFC107" strokeWidth={4} fill="none" strokeLinecap="round" />
+                        </Svg>
+                        <Text style={{ fontSize: 10, fontFamily: "Inter_500Medium", color: "#F44336", marginTop: 2 }}>하락 전환</Text>
+                      </View>
                     </View>
-                  )}
+                    <View style={{ flexDirection: "row" as const, justifyContent: "center" as const, gap: 16, marginTop: 8 }}>
+                      <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                        <View style={{ width: 10, height: 2.5, backgroundColor: "#4CAF50", borderRadius: 1 }} />
+                        <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: Colors.dark.textSecondary }}>단기</Text>
+                      </View>
+                      <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 4 }}>
+                        <View style={{ width: 10, height: 2, backgroundColor: "#9C27B0", borderRadius: 1 }} />
+                        <Text style={{ fontSize: 9, fontFamily: "Inter_500Medium", color: Colors.dark.textSecondary }}>장기</Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>이평선 설정</Text>
+                  </View>
+                  <View style={{ flexDirection: "row" as const, alignItems: "center" as const, gap: 6 }}>
+                    <TextInput
+                      style={[styles.taCustomInput, { width: 48, textAlign: "center" as const, paddingHorizontal: 4 }]}
+                      keyboardType="number-pad"
+                      value={crossShort}
+                      onChangeText={setCrossShort}
+                      placeholder="5"
+                      placeholderTextColor={Colors.dark.textTertiary}
+                    />
+                    <Text style={{ fontSize: 13, color: Colors.dark.textTertiary }}>·</Text>
+                    <TextInput
+                      style={[styles.taCustomInput, { width: 48, textAlign: "center" as const, paddingHorizontal: 4 }]}
+                      keyboardType="number-pad"
+                      value={crossLong}
+                      onChangeText={setCrossLong}
+                      placeholder="20"
+                      placeholderTextColor={Colors.dark.textTertiary}
+                    />
+                    <Text style={{ fontSize: 13, fontFamily: "Inter_500Medium", color: Colors.dark.textSecondary }}>일 이동평균선</Text>
+                  </View>
+                  <View style={styles.taHintCard}>
+                    <Feather name="info" size={12} color={Colors.dark.textTertiary} />
+                    <Text style={styles.taHintText}>5·20이 가장 일반적이에요. 장기 추세는 20·60 또는 50·200을 추천해요.</Text>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>신호 선택</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setCrossDir("golden");
+                        setLocalFilters(prev => ({ ...prev, maCross: `golden_${crossShort}_${crossLong}_${crossPeriod}` }));
+                      }}
+                      style={[styles.betaDirBtn, crossDir === "golden" && { borderColor: "#4CAF50", backgroundColor: "rgba(76,175,80,0.1)" }]}
+                    >
+                      <Feather name="trending-up" size={16} color={crossDir === "golden" ? "#4CAF50" : Colors.dark.textTertiary} />
+                      <Text style={[styles.betaDirText, crossDir === "golden" && { color: "#4CAF50" }]}>골든크로스</Text>
+                      <Text style={styles.betaDirDesc}>상승 전환</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        setCrossDir("death");
+                        setLocalFilters(prev => ({ ...prev, maCross: `death_${crossShort}_${crossLong}_${crossPeriod}` }));
+                      }}
+                      style={[styles.betaDirBtn, crossDir === "death" && { borderColor: "#F44336", backgroundColor: "rgba(244,67,54,0.1)" }]}
+                    >
+                      <Feather name="trending-down" size={16} color={crossDir === "death" ? "#F44336" : Colors.dark.textTertiary} />
+                      <Text style={[styles.betaDirText, crossDir === "death" && { color: "#F44336" }]}>데드크로스</Text>
+                      <Text style={styles.betaDirDesc}>하락 전환</Text>
+                    </Pressable>
+                  </View>
+
+                  <View style={[styles.taSectionHeader, { marginTop: 16 }]}>
+                    <Text style={styles.taSectionTitle}>발생 시점</Text>
+                  </View>
+                  <View style={styles.betaDirRow}>
+                    {[
+                      { id: "3", label: "최근 3일" },
+                      { id: "7", label: "최근 7일" },
+                      { id: "14", label: "최근 14일" },
+                    ].map(p => (
+                      <Pressable
+                        key={p.id}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          setCrossPeriod(p.id);
+                          setLocalFilters(prev => ({ ...prev, maCross: `${crossDir}_${crossShort}_${crossLong}_${p.id}` }));
+                        }}
+                        style={[styles.betaDirBtn, crossPeriod === p.id && { borderColor: Colors.dark.accent, backgroundColor: "rgba(10,132,255,0.1)" }]}
+                      >
+                        <Text style={[styles.betaDirText, crossPeriod === p.id && { color: Colors.dark.accent }]}>{p.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
                 </>
               ) : (
                 <View style={styles.optionsList}>
@@ -1951,7 +2742,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.dark.surfaceElevated,
     borderRadius: 14,
     padding: 14,
-    marginBottom: 24,
+    marginBottom: 8,
     borderWidth: 1,
     borderColor: Colors.dark.cardBorder,
   },
@@ -1994,28 +2785,34 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     color: Colors.dark.textSecondary,
   },
-  betaExampleGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 6,
-    marginTop: 8,
+  betaBarRow: {
+    flexDirection: "row" as const,
+    alignItems: "center" as const,
+    gap: 8,
+    marginBottom: 6,
   },
-  betaExampleItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "rgba(255,255,255,0.04)",
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-  },
-  betaExampleValue: {
-    fontSize: 12,
+  betaBarLabel: {
+    width: 42,
+    fontSize: 11,
     fontFamily: "Inter_600SemiBold",
+    textAlign: "right" as const,
   },
-  betaExampleResult: {
-    fontSize: 13,
+  betaBarTrack: {
+    flex: 1,
+    height: 14,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 4,
+    overflow: "hidden" as const,
+  },
+  betaBarFill: {
+    height: "100%" as const,
+    borderRadius: 4,
+  },
+  betaBarResult: {
+    width: 36,
+    fontSize: 12,
     fontFamily: "Inter_700Bold",
+    textAlign: "right" as const,
   },
   taSectionHeader: {
     marginBottom: 12,

@@ -36,11 +36,28 @@ export interface CoinItem {
   downStreak?: number;
   rsi?: number;
   beta?: number;
+  maAlign?: {
+    "5_20_60"?: "golden" | "death" | "none";
+    "10_50_200"?: "golden" | "death" | "none";
+  };
+  maCross?: {
+    type: "golden" | "death";
+    short: number;
+    long: number;
+    daysAgo: number;
+  }[];
+  newHighLow?: {
+    high?: number;
+    low?: number;
+  };
+  depositSurge?: number;   // 입금량 급등 배수 (e.g. 3.5 = 350%)
+  fewAccountConc?: number; // 소수 계정 거래 집중도 % (e.g. 75 = 75%)
+  profitHolderPct?: number; // 수익 구간 보유자 비율 % (e.g. 72 = 72%)
 }
 
 export type CoinCategoryType = "layer1" | "layer2" | "defi" | "meme" | "ai" | "gaming" | "rwa" | "infra";
 
-export type FilterCategoryId = "marketCap" | "changeRate" | "volume" | "rvol" | "category" | "staking" | "lending" | "newListing" | "circulatingRatio" | "athDrop" | "atlRise" | "streakUp" | "streakDown" | "rsi" | "beta";
+export type FilterCategoryId = "marketCap" | "changeRate" | "volume" | "rvol" | "category" | "staking" | "lending" | "newListing" | "circulatingRatio" | "athDrop" | "atlRise" | "streakUp" | "streakDown" | "rsi" | "beta" | "maAlign" | "maCross" | "newHighLow" | "depositSurge" | "fewAccount" | "unrealizedPnl";
 
 export interface FilterGroup {
   id: string;
@@ -50,9 +67,10 @@ export interface FilterGroup {
 }
 
 export const FILTER_GROUPS: FilterGroup[] = [
-  { id: "basic", title: "기본 정보", icon: "info", categories: ["marketCap", "circulatingRatio", "category", "staking", "lending", "newListing"] },
-  { id: "price", title: "가격 & 거래", icon: "trending-up", categories: ["changeRate", "volume", "rvol", "athDrop", "atlRise", "streakUp", "streakDown"] },
-  { id: "technical", title: "기술적 분석", icon: "activity", categories: ["rsi", "beta"] },
+  { id: "basic", title: "기본", icon: "info", categories: ["category", "marketCap", "circulatingRatio", "staking", "lending", "newListing"] },
+  { id: "supply", title: "수급", icon: "bar-chart-2", categories: ["volume", "rvol", "depositSurge", "fewAccount", "unrealizedPnl"] },
+  { id: "price", title: "가격", icon: "trending-up", categories: ["changeRate", "streakUp", "streakDown", "newHighLow", "athDrop", "atlRise"] },
+  { id: "technical", title: "기술", icon: "activity", categories: ["rsi", "beta", "maAlign", "maCross"] },
 ];
 
 export interface FilterOption {
@@ -137,10 +155,12 @@ export const FILTER_CATEGORIES: FilterCategory[] = [
       { id: "top20", label: "TOP 20", description: "1~20위" },
       { id: "top50", label: "TOP 50", description: "1~50위" },
       { id: "top100", label: "TOP 100", description: "1~100위" },
-      { id: "mega", label: "100조 이상", description: "BTC, ETH 등 초대형" },
-      { id: "large", label: "10조 ~ 100조", description: "대형 코인" },
-      { id: "mid", label: "1조 ~ 10조", description: "중형 코인" },
-      { id: "small", label: "1조 미만", description: "소형 코인" },
+      { id: "mega", label: "100조 이상" },
+      { id: "cap_50_100", label: "50조 ~ 100조" },
+      { id: "cap_1_50", label: "1조 ~ 50조" },
+      { id: "cap_5000_1t", label: "5000억 ~ 1조" },
+      { id: "cap_1000_5000", label: "1000억 ~ 5000억" },
+      { id: "cap_under_1000", label: "1000억 미만" },
     ],
   },
   {
@@ -177,19 +197,85 @@ export const FILTER_CATEGORIES: FilterCategory[] = [
     title: "거래대금",
     subtitle: "거래 금액 규모 기준 필터",
     options: [
-      { id: "high", label: "거래 상위 10개", description: "가장 돈이 많이 몰린 종목" },
-      { id: "mid", label: "거래 상위 11~50개", description: "중간 거래량 구간" },
-      { id: "low", label: "거래 51위 이하", description: "상대적으로 거래 적음" },
+      { id: "top5", label: "Top 5" },
+      { id: "top10", label: "Top 10" },
+      { id: "top20", label: "Top 20" },
+      { id: "top50", label: "Top 50" },
+      { id: "top100", label: "Top 100" },
     ],
   },
   {
     id: "rvol",
-    title: "상대 거래량 (RVOL)",
-    subtitle: "평균 거래량 대비 증가 배수",
+    title: "상대 거래량",
+    subtitle: "평균 대비 거래량이 얼마나 많은지",
     options: [
-      { id: "rvol_200", label: "RVOL 2배 이상", description: "평소 대비 거래량 폭발" },
-      { id: "rvol_300", label: "RVOL 3배 이상", description: "평소 대비 초과 거래" },
-      { id: "rvol_500", label: "RVOL 5배 이상", description: "이상 급등 거래량" },
+      { id: "rvol_200", label: "2배 이상", description: "관심 증가" },
+      { id: "rvol_300", label: "3배 이상", description: "거래 급증" },
+      { id: "rvol_500", label: "5배 이상", description: "거래 폭발" },
+    ],
+  },
+  {
+    id: "depositSurge",
+    title: "거래소 입금",
+    subtitle: "평소 대비 거래소 입금량 급등",
+    options: [
+      { id: "dep_300", label: "3배 이상" },
+      { id: "dep_400", label: "4배 이상" },
+      { id: "dep_500", label: "5배 이상" },
+    ],
+  },
+  {
+    id: "fewAccount",
+    title: "소수 계정 거래 집중",
+    subtitle: "소수 계정에 거래가 집중된 코인",
+    options: [
+      { id: "conc_50", label: "50% 이상" },
+      { id: "conc_75", label: "75% 이상" },
+      { id: "conc_90", label: "90% 이상" },
+    ],
+  },
+  {
+    id: "unrealizedPnl",
+    title: "미실현 손익",
+    subtitle: "수익 구간 보유자 비율 기준",
+    options: [
+      { id: "pnl_75", label: "수익 보유자 75% 이상" },
+      { id: "pnl_50_75", label: "수익 보유자 50~75%" },
+      { id: "pnl_25_50", label: "수익 보유자 25~50%" },
+      { id: "pnl_25", label: "수익 보유자 25% 미만" },
+    ],
+  },
+  {
+    id: "maAlign",
+    title: "이평선 배열",
+    subtitle: "지금 상승 추세인지 하락 추세인지",
+    options: [
+      { id: "golden_5_20_60", label: "정배열", description: "5·20·60일" },
+      { id: "death_5_20_60", label: "역배열", description: "5·20·60일" },
+      { id: "golden_10_50_200", label: "정배열", description: "10·50·200일" },
+      { id: "death_10_50_200", label: "역배열", description: "10·50·200일" },
+    ],
+  },
+  {
+    id: "maCross",
+    title: "이평선 돌파",
+    subtitle: "최근 골든크로스·데드크로스 발생",
+    options: [
+      { id: "golden", label: "골든크로스", description: "상승 전환" },
+      { id: "death", label: "데드크로스", description: "하락 전환" },
+    ],
+  },
+  {
+    id: "newHighLow",
+    title: "신고가/신저가",
+    subtitle: "최근 최고가 또는 최저가를 갱신한 코인",
+    options: [
+      { id: "high_7", label: "신고가 7일" },
+      { id: "high_30", label: "신고가 30일" },
+      { id: "high_90", label: "신고가 90일" },
+      { id: "low_7", label: "신저가 7일" },
+      { id: "low_30", label: "신저가 30일" },
+      { id: "low_90", label: "신저가 90일" },
     ],
   },
   {
@@ -260,24 +346,24 @@ export const FILTER_CATEGORIES: FilterCategory[] = [
   {
     id: "rsi",
     title: "RSI",
-    subtitle: "과매수·과매도 구간 확인",
+    subtitle: "최근 가격이 과열인지 침체인지",
     options: [
-      { id: "oversold", label: "과매도 (30 이하)", description: "반등 가능성 높은 구간" },
-      { id: "weak", label: "약세 (30~50)", description: "매수세가 약한 구간" },
-      { id: "neutral", label: "중립 (40~60)", description: "방향성 탐색 중" },
-      { id: "strong", label: "강세 (50~70)", description: "매수세가 강한 구간" },
-      { id: "overbought", label: "과매수 (70 이상)", description: "조정 가능성 있는 구간" },
+      { id: "oversold", label: "RSI 30 이하", description: "많이 빠짐" },
+      { id: "neutral", label: "RSI 30~70", description: "보통" },
+      { id: "overbought", label: "RSI 70 이상", description: "많이 오름" },
     ],
   },
   {
     id: "beta",
     title: "마켓 베타",
-    subtitle: "비트코인 대비 변동성 크기",
+    subtitle: "BTC 대비 얼마나 같이 움직이지는지",
     options: [
-      { id: "same_mid", label: "유사 (0.8 ~ 1.2)", description: "BTC와 거의 같은 폭" },
-      { id: "same_high", label: "고변동 (2.0 이상)", description: "BTC 오르면 2배 이상 오름" },
-      { id: "opp_mid", label: "유사 (-1.2 ~ -0.8)", description: "BTC와 거의 같은 폭" },
-      { id: "opp_high", label: "고변동 (-2.0 이하)", description: "BTC 오르면 2배 이상 내림" },
+      { id: "same_low", label: "BTC 절반 이하", description: "β < 0.5" },
+      { id: "same_mid", label: "BTC 따라감", description: "β 0.9 ~ 1.1" },
+      { id: "same_high", label: "BTC 1.5배 이상", description: "β > 1.5" },
+      { id: "opp_low", label: "BTC 절반 이하", description: "β -0.5 ~ 0" },
+      { id: "opp_mid", label: "BTC 따라감", description: "β -1.1 ~ -0.9" },
+      { id: "opp_high", label: "BTC 1.5배 이상", description: "β < -1.5" },
     ],
   },
 ];
@@ -308,15 +394,15 @@ function parseMarketCap(v?: string): number {
 }
 
 export const ALL_COINS: CoinItem[] = [
-  { id: "btc", name: "비트코인", symbol: "BTC", iconType: "mci", iconName: "bitcoin", iconColor: "#F7931A", change: 2.3, change1h: 0.4, price: "98,450,000", marketCap: "1,382조", rank: 1, changeWeek: 5.1, changeMonth: 12.8, volume24h: "32조", rVol: 1.2, category: "layer1", tags: ["layer1"], stakable: false, lendable: true, circulatingRatio: 93, athDrop: { all: 5, y1: 2, m6: 0, m3: 0, m1: 0 }, atlRise: { all: 98000, y1: 120, m6: 55, m3: 30, m1: 12 }, streak: 3, rsi: 58, beta: 1.0 },
-  { id: "eth", name: "이더리움", symbol: "ETH", iconType: "mci", iconName: "ethereum", iconColor: "#627EEA", change: 1.8, change1h: 0.2, price: "4,520,000", marketCap: "488조", rank: 2, changeWeek: 3.9, changeMonth: 10.1, volume24h: "18조", rVol: 1.1, category: "layer1", tags: ["layer1", "layer2"], stakable: true, lendable: true, circulatingRatio: 100, athDrop: { all: 8, y1: 5, m6: 3, m3: 2, m1: 0 }, atlRise: { all: 5200, y1: 85, m6: 40, m3: 22, m1: 10 }, streak: 2, rsi: 52, beta: 0.85 },
-  { id: "bnb", name: "바이낸스코인", symbol: "BNB", iconType: "feather", iconName: "hexagon", iconColor: "#F0B90B", change: 1.5, change1h: 0.1, price: "872,000", marketCap: "95조", rank: 3, changeWeek: 2.8, changeMonth: 8.4, volume24h: "3.2조", rVol: 0.9, category: "layer1", tags: ["layer1", "defi"], stakable: true, lendable: true, circulatingRatio: 82, athDrop: { all: 12, y1: 8, m6: 5, m3: 3 }, atlRise: { all: 8500, y1: 65, m6: 35, m3: 15 }, streak: 1, rsi: 48, beta: 0.65 },
-  { id: "sol", name: "솔라나", symbol: "SOL", iconType: "feather", iconName: "zap", iconColor: "#00B8D9", change: 3.1, change1h: 0.8, price: "245,800", marketCap: "88조", rank: 4, changeWeek: 8.4, changeMonth: 22.5, volume24h: "8.5조", rVol: 2.1, category: "layer1", tags: ["layer1", "meme", "defi"], stakable: true, lendable: true, circulatingRatio: 75, athDrop: { all: 3, y1: 0, m6: 0, m3: 0, m1: 0 }, atlRise: { all: 24000, y1: 340, m6: 120, m3: 55, m1: 22 }, streak: 5, rsi: 72, beta: 1.35 },
-  { id: "xrp", name: "리플", symbol: "XRP", iconType: "feather", iconName: "send", iconColor: "#00AAE4", change: -0.8, change1h: -0.3, price: "852", marketCap: "42조", rank: 5, changeWeek: -2.1, changeMonth: 5.3, volume24h: "4.8조", rVol: 1.5, category: "layer1", tags: ["layer1", "rwa"], stakable: false, lendable: true, circulatingRatio: 56, athDrop: { all: 45, y1: 30, m6: 18, m3: 10 }, atlRise: { all: 280, y1: 50, m6: 25, m3: 12 }, streak: 0, downStreak: 3, rsi: 38, beta: 0.42 },
-  { id: "doge", name: "도지코인", symbol: "DOGE", iconType: "feather", iconName: "circle", iconColor: "#C3A634", change: 4.1, change1h: 1.2, price: "425", marketCap: "22조", rank: 6, changeWeek: 6.2, changeMonth: -1.5, volume24h: "5.1조", rVol: 2.8, category: "meme", tags: ["meme"], stakable: false, lendable: true, circulatingRatio: 100, athDrop: { all: 42, y1: 35, m6: 20, m3: 8 }, atlRise: { all: 150000, y1: 200, m6: 80, m3: 30 }, streak: 1, rsi: 62, beta: 1.8 },
-  { id: "link", name: "체인링크", symbol: "LINK", iconType: "feather", iconName: "link", iconColor: "#2A5ADA", change: 3.4, change1h: 0.5, price: "22,500", marketCap: "14조", rank: 7, changeWeek: 7.8, changeMonth: 15.2, volume24h: "1.8조", rVol: 1.4, category: "infra", tags: ["infra", "rwa", "defi"], stakable: true, lendable: true, circulatingRatio: 62, athDrop: { all: 55, y1: 20, m6: 10, m3: 5 }, atlRise: { all: 6300, y1: 180, m6: 85, m3: 35 }, streak: 3, rsi: 61, beta: 1.12 },
-  { id: "sui", name: "수이", symbol: "SUI", iconType: "feather", iconName: "droplet", iconColor: "#4DA2FF", change: 12.3, change1h: 3.1, price: "4,850", marketCap: "12조", rank: 8, changeWeek: 18.5, changeMonth: 42.1, volume24h: "6.2조", rVol: 4.5, category: "layer1", tags: ["layer1", "layer2", "defi"], stakable: true, lendable: false, listingDays: 6, circulatingRatio: 28, athDrop: { all: 2, y1: 0, m6: 0, m3: 0, m1: 0 }, atlRise: { all: 1200, y1: 450, m6: 180, m3: 85, m1: 42 }, streak: 4, rsi: 78, beta: 1.65 },
-  { id: "pepe", name: "페페", symbol: "PEPE", iconType: "feather", iconName: "smile", iconColor: "#3CB043", change: 8.5, change1h: 2.4, price: "0.015", marketCap: "6.3조", rank: 9, changeWeek: 15.2, changeMonth: 35.8, volume24h: "4.2조", rVol: 3.8, category: "meme", tags: ["meme"], stakable: false, lendable: false, circulatingRatio: 93, athDrop: { all: 18, y1: 10, m6: 5, m3: 2 }, atlRise: { all: 450000, y1: 800, m6: 350, m3: 120 }, streak: 3, rsi: 74, beta: 2.1 },
+  { id: "btc", name: "비트코인", symbol: "BTC", iconType: "mci", iconName: "bitcoin", iconColor: "#F7931A", change: 2.3, change1h: 0.4, price: "98,450,000", marketCap: "1,382조", rank: 1, changeWeek: 5.1, changeMonth: 12.8, volume24h: "32조", rVol: 1.2, category: "layer1", tags: ["layer1"], stakable: false, lendable: true, circulatingRatio: 93, athDrop: { all: 5, y1: 2, m6: 0, m3: 0, m1: 0 }, atlRise: { all: 98000, y1: 120, m6: 55, m3: 30, m1: 12 }, streak: 3, rsi: 58, beta: 1.0, maAlign: { "5_20_60": "golden", "10_50_200": "golden" }, maCross: [{ type: "golden", short: 5, long: 20, daysAgo: 5 }], newHighLow: { high: 3 }, depositSurge: 2.1, profitHolderPct: 82 },
+  { id: "eth", name: "이더리움", symbol: "ETH", iconType: "mci", iconName: "ethereum", iconColor: "#627EEA", change: 1.8, change1h: 0.2, price: "4,520,000", marketCap: "488조", rank: 2, changeWeek: 3.9, changeMonth: 10.1, volume24h: "18조", rVol: 1.1, category: "layer1", tags: ["layer1", "layer2"], stakable: true, lendable: true, circulatingRatio: 100, athDrop: { all: 8, y1: 5, m6: 3, m3: 2, m1: 0 }, atlRise: { all: 5200, y1: 85, m6: 40, m3: 22, m1: 10 }, streak: 2, rsi: 52, beta: 0.85, maAlign: { "5_20_60": "golden", "10_50_200": "none" }, maCross: [{ type: "golden", short: 5, long: 20, daysAgo: 2 }], profitHolderPct: 68 },
+  { id: "bnb", name: "바이낸스코인", symbol: "BNB", iconType: "feather", iconName: "hexagon", iconColor: "#F0B90B", change: 1.5, change1h: 0.1, price: "872,000", marketCap: "95조", rank: 3, changeWeek: 2.8, changeMonth: 8.4, volume24h: "3.2조", rVol: 0.9, category: "layer1", tags: ["layer1", "defi"], stakable: true, lendable: true, circulatingRatio: 82, athDrop: { all: 12, y1: 8, m6: 5, m3: 3 }, atlRise: { all: 8500, y1: 65, m6: 35, m3: 15 }, streak: 1, rsi: 48, beta: 0.65, maAlign: { "5_20_60": "none", "10_50_200": "golden" } },
+  { id: "sol", name: "솔라나", symbol: "SOL", iconType: "feather", iconName: "zap", iconColor: "#00B8D9", change: 3.1, change1h: 0.8, price: "245,800", marketCap: "88조", rank: 4, changeWeek: 8.4, changeMonth: 22.5, volume24h: "8.5조", rVol: 2.1, category: "layer1", tags: ["layer1", "meme", "defi"], stakable: true, lendable: true, circulatingRatio: 75, athDrop: { all: 3, y1: 0, m6: 0, m3: 0, m1: 0 }, atlRise: { all: 24000, y1: 340, m6: 120, m3: 55, m1: 22 }, streak: 5, rsi: 72, beta: 1.35, maAlign: { "5_20_60": "golden", "10_50_200": "golden" }, maCross: [{ type: "golden", short: 5, long: 20, daysAgo: 1 }, { type: "golden", short: 20, long: 60, daysAgo: 8 }], newHighLow: { high: 1 }, depositSurge: 4.2, fewAccountConc: 35, profitHolderPct: 88 },
+  { id: "xrp", name: "리플", symbol: "XRP", iconType: "feather", iconName: "send", iconColor: "#00AAE4", change: -0.8, change1h: -0.3, price: "852", marketCap: "42조", rank: 5, changeWeek: -2.1, changeMonth: 5.3, volume24h: "4.8조", rVol: 1.5, category: "layer1", tags: ["layer1", "rwa"], stakable: false, lendable: true, circulatingRatio: 56, athDrop: { all: 45, y1: 30, m6: 18, m3: 10 }, atlRise: { all: 280, y1: 50, m6: 25, m3: 12 }, streak: 0, downStreak: 3, rsi: 38, beta: 0.42, maAlign: { "5_20_60": "death", "10_50_200": "death" }, maCross: [{ type: "death", short: 5, long: 20, daysAgo: 3 }], newHighLow: { low: 5 }, depositSurge: 5.5, fewAccountConc: 82, profitHolderPct: 22 },
+  { id: "doge", name: "도지코인", symbol: "DOGE", iconType: "feather", iconName: "circle", iconColor: "#C3A634", change: 4.1, change1h: 1.2, price: "425", marketCap: "22조", rank: 6, changeWeek: 6.2, changeMonth: -1.5, volume24h: "5.1조", rVol: 2.8, category: "meme", tags: ["meme"], stakable: false, lendable: true, circulatingRatio: 100, athDrop: { all: 42, y1: 35, m6: 20, m3: 8 }, atlRise: { all: 150000, y1: 200, m6: 80, m3: 30 }, streak: 1, rsi: 62, beta: 1.8, maAlign: { "5_20_60": "golden", "10_50_200": "none" } },
+  { id: "link", name: "체인링크", symbol: "LINK", iconType: "feather", iconName: "link", iconColor: "#2A5ADA", change: 3.4, change1h: 0.5, price: "22,500", marketCap: "14조", rank: 7, changeWeek: 7.8, changeMonth: 15.2, volume24h: "1.8조", rVol: 1.4, category: "infra", tags: ["infra", "rwa", "defi"], stakable: true, lendable: true, circulatingRatio: 62, athDrop: { all: 55, y1: 20, m6: 10, m3: 5 }, atlRise: { all: 6300, y1: 180, m6: 85, m3: 35 }, streak: 3, rsi: 61, beta: 1.12, maAlign: { "5_20_60": "golden", "10_50_200": "golden" } },
+  { id: "sui", name: "수이", symbol: "SUI", iconType: "feather", iconName: "droplet", iconColor: "#4DA2FF", change: 12.3, change1h: 3.1, price: "4,850", marketCap: "12조", rank: 8, changeWeek: 18.5, changeMonth: 42.1, volume24h: "6.2조", rVol: 4.5, category: "layer1", tags: ["layer1", "layer2", "defi"], stakable: true, lendable: false, listingDays: 6, circulatingRatio: 28, athDrop: { all: 2, y1: 0, m6: 0, m3: 0, m1: 0 }, atlRise: { all: 1200, y1: 450, m6: 180, m3: 85, m1: 42 }, streak: 4, rsi: 78, beta: 1.65, maAlign: { "5_20_60": "golden", "10_50_200": "golden" }, maCross: [{ type: "golden", short: 5, long: 20, daysAgo: 6 }], newHighLow: { high: 2 }, depositSurge: 3.8, fewAccountConc: 55, profitHolderPct: 76 },
+  { id: "pepe", name: "페페", symbol: "PEPE", iconType: "feather", iconName: "smile", iconColor: "#3CB043", change: 8.5, change1h: 2.4, price: "0.015", marketCap: "6.3조", rank: 9, changeWeek: 15.2, changeMonth: 35.8, volume24h: "4.2조", rVol: 3.8, category: "meme", tags: ["meme"], stakable: false, lendable: false, circulatingRatio: 93, athDrop: { all: 18, y1: 10, m6: 5, m3: 2 }, atlRise: { all: 450000, y1: 800, m6: 350, m3: 120 }, streak: 3, rsi: 74, beta: 2.1, maAlign: { "5_20_60": "golden", "10_50_200": "none" }, maCross: [{ type: "golden", short: 5, long: 20, daysAgo: 4 }], newHighLow: { high: 6 }, depositSurge: 3.2, profitHolderPct: 42 },
   { id: "shib", name: "시바이누", symbol: "SHIB", iconType: "feather", iconName: "target", iconColor: "#FFA500", change: 5.2, change1h: 1.5, price: "0.038", marketCap: "5.8조", rank: 10, changeWeek: 8.1, changeMonth: 12.3, volume24h: "2.1조", rVol: 2.3, category: "meme", tags: ["meme"], stakable: false, lendable: false, circulatingRatio: 100, athDrop: { all: 58, y1: 40, m6: 25, m3: 12 }, atlRise: { all: 380000, y1: 150, m6: 60, m3: 25 }, streak: 2, rsi: 65, beta: 1.72 },
   { id: "uni", name: "유니스왑", symbol: "UNI", iconType: "feather", iconName: "repeat", iconColor: "#FF007A", change: 2.8, change1h: 0.3, price: "18,200", marketCap: "5.5조", rank: 11, changeWeek: 4.2, changeMonth: 9.8, volume24h: "1.2조", rVol: 1.0, category: "defi", tags: ["defi"], stakable: false, lendable: true, circulatingRatio: 60, athDrop: { all: 62, y1: 45, m6: 30, m3: 15 }, atlRise: { all: 530, y1: 80, m6: 35, m3: 18 }, streak: 2, rsi: 45, beta: 0.92 },
   { id: "aave", name: "에이브", symbol: "AAVE", iconType: "feather", iconName: "layers", iconColor: "#B6509E", change: 1.9, change1h: 0.1, price: "345,000", marketCap: "5.1조", rank: 12, changeWeek: 3.5, changeMonth: 11.2, volume24h: "850억", rVol: 0.8, category: "defi", tags: ["defi", "rwa"], stakable: true, lendable: true, circulatingRatio: 91, athDrop: { all: 48, y1: 30, m6: 18, m3: 8 }, atlRise: { all: 620, y1: 90, m6: 45, m3: 20 }, streak: 1, rsi: 50, beta: 0.78 },
@@ -324,11 +410,11 @@ export const ALL_COINS: CoinItem[] = [
   { id: "apt", name: "앱토스", symbol: "APT", iconType: "feather", iconName: "box", iconColor: "#2DD8A3", change: 7.1, change1h: 1.8, price: "15,200", marketCap: "4.5조", rank: 14, changeWeek: 12.3, changeMonth: 18.9, volume24h: "1.8조", rVol: 2.0, category: "layer1", tags: ["layer1", "layer2"], stakable: true, lendable: true, circulatingRatio: 22, athDrop: { all: 25, y1: 15, m6: 8, m3: 3 }, atlRise: { all: 450, y1: 120, m6: 55, m3: 25 }, streak: 3, rsi: 67, beta: 1.18 },
   { id: "fet", name: "페치AI", symbol: "FET", iconType: "feather", iconName: "cpu", iconColor: "#1E1B4B", change: 11.2, change1h: 3.5, price: "3,250", marketCap: "3.8조", rank: 15, changeWeek: 22.1, changeMonth: 45.3, volume24h: "3.1조", rVol: 5.1, category: "ai", tags: ["ai"], stakable: true, lendable: false, listingDays: 13, circulatingRatio: 85, athDrop: { all: 8, y1: 3, m6: 0, m3: 0, m1: 0 }, atlRise: { all: 8500, y1: 380, m6: 150, m3: 75, m1: 45 }, streak: 6, rsi: 82, beta: 1.95 },
   { id: "arb", name: "아비트럼", symbol: "ARB", iconType: "feather", iconName: "wind", iconColor: "#28A0F0", change: 4.5, change1h: 0.9, price: "1,850", marketCap: "3.5조", rank: 16, changeWeek: 8.1, changeMonth: 14.2, volume24h: "1.5조", rVol: 1.7, category: "layer2", tags: ["layer2"], stakable: false, lendable: true, circulatingRatio: 35, athDrop: { all: 72, y1: 60, m6: 45, m3: 25 }, atlRise: { all: 85, y1: 30, m6: 15, m3: 8 }, streak: 2, rsi: 55, beta: 1.08 },
-  { id: "mkr", name: "메이커", symbol: "MKR", iconType: "feather", iconName: "shield", iconColor: "#1AAB9B", change: -0.5, change1h: -0.1, price: "2,150,000", marketCap: "2.8조", rank: 17, changeWeek: -1.2, changeMonth: 3.5, volume24h: "420억", rVol: 0.6, category: "defi", tags: ["defi", "rwa"], stakable: false, lendable: false, circulatingRatio: 95, athDrop: { all: 38, y1: 22, m6: 12, m3: 5 }, atlRise: { all: 720, y1: 60, m6: 30, m3: 15 }, streak: 0, downStreak: 2, rsi: 28, beta: -0.15 },
+  { id: "mkr", name: "메이커", symbol: "MKR", iconType: "feather", iconName: "shield", iconColor: "#1AAB9B", change: -0.5, change1h: -0.1, price: "2,150,000", marketCap: "2.8조", rank: 17, changeWeek: -1.2, changeMonth: 3.5, volume24h: "420억", rVol: 0.6, category: "defi", tags: ["defi", "rwa"], stakable: false, lendable: false, circulatingRatio: 95, athDrop: { all: 38, y1: 22, m6: 12, m3: 5 }, atlRise: { all: 720, y1: 60, m6: 30, m3: 15 }, streak: 0, downStreak: 2, rsi: 28, beta: -0.15, maCross: [{ type: "death", short: 5, long: 20, daysAgo: 2 }], newHighLow: { low: 8 }, fewAccountConc: 92, profitHolderPct: 15 },
   { id: "ondo", name: "온도파이낸스", symbol: "ONDO", iconType: "feather", iconName: "briefcase", iconColor: "#1C64F2", change: 6.8, change1h: 1.9, price: "2,450", marketCap: "2.5조", rank: 18, changeWeek: 14.5, changeMonth: 32.1, volume24h: "2.8조", rVol: 3.5, category: "rwa", tags: ["rwa"], stakable: false, lendable: false, listingDays: 27, circulatingRatio: 15, athDrop: { all: 10, y1: 5, m6: 2, m3: 0 }, atlRise: { all: 1800, y1: 300, m6: 120, m3: 55 }, streak: 5, rsi: 73, beta: 0.35 },
   { id: "op", name: "옵티미즘", symbol: "OP", iconType: "feather", iconName: "sunrise", iconColor: "#FF0420", change: 3.2, change1h: 0.6, price: "3,120", marketCap: "2.2조", rank: 19, changeWeek: 5.8, changeMonth: 10.5, volume24h: "980억", rVol: 1.1, category: "layer2", tags: ["layer2"], stakable: false, lendable: true, circulatingRatio: 30, athDrop: { all: 65, y1: 50, m6: 35, m3: 18 }, atlRise: { all: 180, y1: 40, m6: 20, m3: 10 }, streak: 2, rsi: 42, beta: 1.22 },
   { id: "floki", name: "플로키", symbol: "FLOKI", iconType: "feather", iconName: "star", iconColor: "#E8A317", change: 6.7, change1h: 2.0, price: "0.28", marketCap: "1.8조", rank: 20, changeWeek: 12.8, changeMonth: 25.4, volume24h: "1.2조", rVol: 2.9, category: "meme", tags: ["meme"], stakable: false, lendable: false, circulatingRatio: 100, athDrop: { all: 35, y1: 20, m6: 10, m3: 5 }, atlRise: { all: 280000, y1: 400, m6: 180, m3: 65 }, streak: 3, rsi: 68, beta: 1.88 },
-  { id: "akt", name: "아카시", symbol: "AKT", iconType: "feather", iconName: "cloud", iconColor: "#FF4444", change: 5.6, change1h: 1.3, price: "8,500", marketCap: "1.5조", rank: 21, changeWeek: 9.2, changeMonth: 18.7, volume24h: "650억", rVol: 2.4, category: "infra", tags: ["infra", "depin"], stakable: true, lendable: false, circulatingRatio: 68, athDrop: { all: 22, y1: 12, m6: 5, m3: 2 }, atlRise: { all: 4200, y1: 200, m6: 90, m3: 40 }, streak: 2, rsi: 25, beta: -0.3 },
+  { id: "akt", name: "아카시", symbol: "AKT", iconType: "feather", iconName: "cloud", iconColor: "#FF4444", change: 5.6, change1h: 1.3, price: "8,500", marketCap: "1.5조", rank: 21, changeWeek: 9.2, changeMonth: 18.7, volume24h: "650억", rVol: 2.4, category: "infra", tags: ["infra", "depin"], stakable: true, lendable: false, circulatingRatio: 68, athDrop: { all: 22, y1: 12, m6: 5, m3: 2 }, atlRise: { all: 4200, y1: 200, m6: 90, m3: 40 }, streak: 2, rsi: 25, beta: -0.3, maCross: [{ type: "death", short: 5, long: 20, daysAgo: 7 }], newHighLow: { low: 15 } },
   { id: "hnt", name: "헬륨", symbol: "HNT", iconType: "feather", iconName: "radio", iconColor: "#474DFF", change: 3.8, change1h: 0.7, price: "9,200", marketCap: "1.2조", rank: 22, changeWeek: 5.5, changeMonth: 8.9, volume24h: "280억", rVol: 1.3, category: "infra", tags: ["infra", "depin"], stakable: false, lendable: false, circulatingRatio: 78, athDrop: { all: 82, y1: 70, m6: 55, m3: 35 }, atlRise: { all: 45, y1: 15, m6: 8, m3: 3 }, streak: 1, rsi: 33, beta: 0.28 },
 ];
 
@@ -367,9 +453,11 @@ export function filterCoins(
         if (f === "top100" && r > 100) return false;
         const cap = parseMarketCap(coin.marketCap);
         if (f === "mega" && cap < 1000000) return false;
-        if (f === "large" && (cap < 100000 || cap >= 1000000)) return false;
-        if (f === "mid" && (cap < 10000 || cap >= 100000)) return false;
-        if (f === "small" && cap >= 10000) return false;
+        if (f === "cap_50_100" && (cap < 500000 || cap >= 1000000)) return false;
+        if (f === "cap_1_50" && (cap < 10000 || cap >= 500000)) return false;
+        if (f === "cap_5000_1t" && (cap < 5000 || cap >= 10000)) return false;
+        if (f === "cap_1000_5000" && (cap < 1000 || cap >= 5000)) return false;
+        if (f === "cap_under_1000" && cap >= 1000) return false;
       }
     }
     if (filters.changeRate) {
@@ -377,14 +465,24 @@ export function filterCoins(
       if (cr.startsWith("custom:")) {
         const parts = cr.replace("custom:", "").split(":");
         const period = parts[0];
-        const pct = parseFloat(parts[1]);
-        const dir = parts[2];
         let val = coin.change;
         if (period === "1h") val = coin.change1h ?? 0;
         else if (period === "7d") val = coin.changeWeek ?? 0;
         else if (period === "30d") val = coin.changeMonth ?? 0;
-        if (dir === "up" && val < pct) return false;
-        if (dir === "down" && val > -pct) return false;
+        if (parts.length === 4) {
+          // range format: custom:period:min:max:dir
+          const min = parseFloat(parts[1]);
+          const max = parseFloat(parts[2]);
+          const dir = parts[3];
+          const absVal = Math.abs(val);
+          if (dir === "up" && (val < 0 || absVal < min || absVal > max)) return false;
+          if (dir === "down" && (val > 0 || absVal < min || absVal > max)) return false;
+        } else {
+          const pct = parseFloat(parts[1]);
+          const dir = parts[2];
+          if (dir === "up" && val < pct) return false;
+          if (dir === "down" && val > -pct) return false;
+        }
       }
     }
     if (filters.volume) {
@@ -395,11 +493,19 @@ export function filterCoins(
         const maxV = parseFloat(parts[1]);
         const vol = parseVolume(coin.volume24h);
         if (vol < minV || vol > maxV) return false;
+      } else if (vf.startsWith("customRank:")) {
+        const parts = vf.replace("customRank:", "").split("-");
+        const minR = parseInt(parts[0], 10);
+        const maxR = parseInt(parts[1], 10);
+        const volumeRank = volumeRankById.get(coin.id) ?? Number.MAX_SAFE_INTEGER;
+        if (volumeRank < minR || volumeRank > maxR) return false;
       } else {
         const volumeRank = volumeRankById.get(coin.id) ?? Number.MAX_SAFE_INTEGER;
-        if (vf === "high" && volumeRank > 10) return false;
-        if (vf === "mid" && (volumeRank <= 10 || volumeRank > 50)) return false;
-        if (vf === "low" && volumeRank <= 50) return false;
+        if (vf === "top5" && volumeRank > 5) return false;
+        if (vf === "top10" && volumeRank > 10) return false;
+        if (vf === "top20" && volumeRank > 20) return false;
+        if (vf === "top50" && volumeRank > 50) return false;
+        if (vf === "top100" && volumeRank > 100) return false;
       }
     }
     if (filters.rvol) {
@@ -413,6 +519,24 @@ export function filterCoins(
         const mult = parseInt(rf.replace("rvol_", ""), 10) / 100;
         if ((coin.rVol ?? 0) < mult) return false;
       }
+    }
+    if (filters.depositSurge) {
+      const f = filters.depositSurge;
+      const mult = parseInt(f.replace("dep_", ""), 10) / 100;
+      if ((coin.depositSurge ?? 0) < mult) return false;
+    }
+    if (filters.fewAccount) {
+      const f = filters.fewAccount;
+      const pct = parseInt(f.replace("conc_", ""), 10);
+      if ((coin.fewAccountConc ?? 0) < pct) return false;
+    }
+    if (filters.unrealizedPnl) {
+      const f = filters.unrealizedPnl;
+      const pct = coin.profitHolderPct ?? 0;
+      if (f === "pnl_75" && pct < 75) return false;
+      if (f === "pnl_50_75" && (pct < 50 || pct >= 75)) return false;
+      if (f === "pnl_25_50" && (pct < 25 || pct >= 50)) return false;
+      if (f === "pnl_25" && pct >= 25) return false;
     }
     if (filters.category) {
       const tags = coin.tags ?? [];
@@ -444,13 +568,20 @@ export function filterCoins(
       if (f.startsWith("custom:")) {
         const parts = f.replace("custom:", "").split(":");
         const period = parts[0] as "all" | "y1" | "m6" | "m3" | "m1";
-        const pct = parseFloat(parts[1]);
-        const dir = parts[2];
         const dropData = coin.athDrop;
         if (!dropData) return false;
         const val = dropData[period] ?? dropData.all;
-        if (dir === "under" && val > pct) return false;
-        if (dir === "over" && val < pct) return false;
+        if (parts.length === 3) {
+          // range format: custom:period:min:max
+          const min = parseFloat(parts[1]);
+          const max = parseFloat(parts[2]);
+          if (val < min || val > max) return false;
+        } else {
+          const pct = parseFloat(parts[1]);
+          const dir = parts[2];
+          if (dir === "under" && val > pct) return false;
+          if (dir === "over" && val < pct) return false;
+        }
       }
     }
     if (filters.atlRise) {
@@ -458,13 +589,19 @@ export function filterCoins(
       if (f.startsWith("custom:")) {
         const parts = f.replace("custom:", "").split(":");
         const period = parts[0] as "all" | "y1" | "m6" | "m3" | "m1";
-        const pct = parseFloat(parts[1]);
-        const dir = parts[2];
         const riseData = coin.atlRise;
         if (!riseData) return false;
         const val = riseData[period] ?? riseData.all;
-        if (dir === "under" && val > pct) return false;
-        if (dir === "over" && val < pct) return false;
+        if (parts.length === 3) {
+          const min = parseFloat(parts[1]);
+          const max = parseFloat(parts[2]);
+          if (val < min || val > max) return false;
+        } else {
+          const pct = parseFloat(parts[1]);
+          const dir = parts[2];
+          if (dir === "under" && val > pct) return false;
+          if (dir === "over" && val < pct) return false;
+        }
       }
     }
     if (filters.streakUp) {
@@ -485,9 +622,7 @@ export function filterCoins(
         if (rsi < min || rsi > max) return false;
       } else {
         if (f === "oversold" && rsi > 30) return false;
-        if (f === "weak" && (rsi < 30 || rsi > 50)) return false;
-        if (f === "neutral" && (rsi < 40 || rsi > 60)) return false;
-        if (f === "strong" && (rsi < 50 || rsi > 70)) return false;
+        if (f === "neutral" && (rsi < 30 || rsi > 70)) return false;
         if (f === "overbought" && rsi < 70) return false;
       }
     }
@@ -501,11 +636,46 @@ export function filterCoins(
         if (b < min || b > max) return false;
       } else {
         if (f === "negative" && b >= 0) return false;
-        if (f === "same_mid" && (b < 0.8 || b > 1.2)) return false;
-        if (f === "same_high" && b < 2.0) return false;
-        if (f === "opp_mid" && (b < -1.2 || b > -0.8)) return false;
-        if (f === "opp_high" && b > -2.0) return false;
+        if (f === "same_low" && (b < 0 || b >= 0.5)) return false;
+        if (f === "same_mid" && (b < 0.9 || b > 1.1)) return false;
+        if (f === "same_high" && b < 1.5) return false;
+        if (f === "opp_low" && (b > 0 || b < -0.5)) return false;
+        if (f === "opp_mid" && (b < -1.1 || b > -0.9)) return false;
+        if (f === "opp_high" && b > -1.5) return false;
       }
+    }
+    if (filters.maAlign) {
+      const f = filters.maAlign;
+      const ma = coin.maAlign;
+      if (!ma) return false;
+      // format: "golden_5_20_60" or "death_10_50_200"
+      const parts = f.split("_");
+      const dir = parts[0] as "golden" | "death";
+      const key = parts.slice(1).join("_") as keyof NonNullable<typeof ma>;
+      if (ma[key] !== dir) return false;
+    }
+    if (filters.maCross) {
+      const f = filters.maCross;
+      const crosses = coin.maCross;
+      if (!crosses || crosses.length === 0) return false;
+      // format: "golden_5_20_14" => type_short_long_withinDays
+      const parts = f.split("_");
+      const dir = parts[0] as "golden" | "death";
+      const short = parseInt(parts[1], 10);
+      const long = parseInt(parts[2], 10);
+      const withinDays = parseInt(parts[3], 10);
+      const match = crosses.some(c => c.type === dir && c.short === short && c.long === long && c.daysAgo <= withinDays);
+      if (!match) return false;
+    }
+    if (filters.newHighLow) {
+      const f = filters.newHighLow;
+      const parts = f.split("_");
+      const type = parts[0] as "high" | "low";
+      const days = parseInt(parts[1], 10);
+      const hl = coin.newHighLow;
+      if (!hl) return false;
+      const val = type === "high" ? hl.high : hl.low;
+      if (val === undefined || val > days) return false;
     }
     return true;
   });
@@ -550,6 +720,6 @@ export const COIN_CATEGORIES: CoinCategory[] = [
     subtitle: "시총은 작지만 최근 주목받는 중",
     coins: ALL_COINS.filter(c => parseMarketCap(c.marketCap) < 50000).sort((a, b) => b.change - a.change).slice(0, 3),
     filterKey: "marketCap",
-    filterValue: "small",
+    filterValue: "cap_under_1000",
   },
 ];

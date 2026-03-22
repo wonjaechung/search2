@@ -37,7 +37,7 @@ type SortDirection = "asc" | "desc";
 
 const EMPTY_FILTERS: Record<FilterCategoryId, string | null> = {
   marketCap: null, changeRate: null, volume: null, rvol: null, category: null, staking: null, lending: null, newListing: null,
-  circulatingRatio: null, athDrop: null, atlRise: null, streakUp: null, streakDown: null, rsi: null, beta: null,
+  circulatingRatio: null, athDrop: null, atlRise: null, streakUp: null, streakDown: null, rsi: null, beta: null, maAlign: null, maCross: null, newHighLow: null, depositSurge: null, fewAccount: null, unrealizedPnl: null,
 };
 
 const ROW_HEIGHT = 56;

@@ -51,6 +51,12 @@ const EMPTY_FILTERS: Record<FilterCategoryId, string | null> = {
   streakDown: null,
   rsi: null,
   beta: null,
+  maAlign: null,
+  maCross: null,
+  newHighLow: null,
+  depositSurge: null,
+  fewAccount: null,
+  unrealizedPnl: null,
 };
 
 export default function ExchangeSearchIntegratedScreen() {

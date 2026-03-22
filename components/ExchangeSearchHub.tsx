@@ -49,6 +49,12 @@ const EMPTY_FILTERS: Record<FilterCategoryId, string | null> = {
   streakDown: null,
   rsi: null,
   beta: null,
+  maAlign: null,
+  maCross: null,
+  newHighLow: null,
+  depositSurge: null,
+  fewAccount: null,
+  unrealizedPnl: null,
 };
 
 function buildLiveBySymbol(coins: ExchangeCoin[]): Record<string, ExchangeCoin> {
@@ -1026,7 +1032,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   savedModalItem: {
-    borderRadius: 10,
     minHeight: 52,
     borderRadius: 12,
     borderWidth: 1,
